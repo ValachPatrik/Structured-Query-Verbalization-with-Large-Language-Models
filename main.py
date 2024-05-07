@@ -54,6 +54,8 @@ def load_lc() -> pd.DataFrame:
     """
     This function loads the LC quad dataset. If the dataset is already locally available, it loads it from the local storage.
     Otherwise, it fetches the data from the network.
+    
+    Deletes rows with failed mappings!!!
 
     Parameters:
     None
