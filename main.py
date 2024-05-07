@@ -40,7 +40,6 @@ def load_lc():
         test_df = lc_quad_dataset["test"].to_pandas()
 
         combined_df = pd.concat([train_df, test_df], ignore_index=True)
-        combined_df = combined_df.head(5)
 
         combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(map_wikidata_to_natural_language)
         
@@ -51,5 +50,3 @@ def load_lc():
     return combined_df
 
 combined_df = load_lc()
-print(combined_df["wikidata_translated"])
-
