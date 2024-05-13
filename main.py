@@ -113,7 +113,7 @@ def generate_response_llama(sparql_query: str, model: str, api_endpoint: str) ->
 
     payload = {
         "model": model,
-        "prompt": "Translate the sparql query into natural language; respond in one sentence only with the translation itself: " + sparql_query
+        "prompt": "Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: " + sparql_query
     }
     response = requests.post(api_endpoint, json=payload, stream=True)
     response_text = ""
@@ -195,11 +195,11 @@ def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str) -> pd.DataFrame:
         print(f"Evaluated file already exists. Do you want to overwrite/add llm eval? (y/n)")
         answer = input()
         if answer == "y":
-            df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['question'], x[f'{model}_response'], model, api_endpoint), axis=1)
+            df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['paraphrased_question'], x[f'{model}_response'], model, api_endpoint), axis=1)
         else:
             df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv")
     else:
-        df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["question"], x[f"{model}_response"], model, api_endpoint), axis=1)
+        df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["paraphrased_question"], x[f"{model}_response"], model, api_endpoint), axis=1)
     
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved llm eval")
@@ -236,11 +236,11 @@ def eval_mlp_bert(df: pd.DataFrame, model: str) -> pd.DataFrame:
         print(f"Evaluated file already exists. Do you want to overwrite/add bert eval? (y/n)")
         answer = input()
         if answer == "y":
-            df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["question"], x[f"{model}_response"]), axis=1)
+            df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
         else:
             df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv")
     else:
-        df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["question"], x[f"{model}_response"]), axis=1)
+        df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
     
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved bert eval")
@@ -255,11 +255,11 @@ def eval_mlp_bleu(df: pd.DataFrame, model: str) -> pd.DataFrame:
         print(f"Evaluated file already exists. Do you want to overwrite/add bleu eval? (y/n)")
         answer = input()
         if answer == "y":
-            df['eval_bert'] = df.apply(lambda x: eval_bleu_logic(x["question"], x[f"{model}_response"]))
+            df['eval_bert'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x[f"{model}_response"]))
         else:
             df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv")
     else:
-        df['eval_bert'] = df.apply(lambda x: eval_bleu_logic(x["question"], x[f"{model}_response"]))
+        df['eval_bert'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x[f"{model}_response"]))
     
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved bleu eval")
@@ -288,7 +288,7 @@ def f1(precision, recall):
 # Constants
 model = "llama3"
 api_endpoint = "http://localhost:11434/api/generate"
-size_manual_eval = 20
+size_manual_eval = 100
 
 # Load data
 df = load_lc()
@@ -301,9 +301,9 @@ df = eval_manual(df, model, size_manual_eval)
 df = eval_llm(df, model, api_endpoint)
     # 3 - MLP
         # BERT
-df = eval_mlp_bert(df)
+df = eval_mlp_bert(df, model)
         # BLEU
-df = eval_mlp_bleu(df)
+df = eval_mlp_bleu(df, model)
 
 
 eval_manual_llm_same = df.head(size_manual_eval)[(df['eval_manual'] == df['eval_llm'])].shape[0]
