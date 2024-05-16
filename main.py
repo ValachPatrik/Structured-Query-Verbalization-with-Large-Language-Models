@@ -144,27 +144,27 @@ def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd
 
 
 
-def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: int) -> pd.DataFrame:
+def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: int, prompt: str) -> pd.DataFrame:
     df = df.head(size_manual_eval)
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
         print(f"Evaluated file already exists. Do you want to overwrite/add llm eval? (y/n)")
         answer = input()
         if answer == "y":
-            df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['paraphrased_question'], x[f'{model}_response'], model, api_endpoint), axis=1)
+            df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['paraphrased_question'], x[f'{model}_response'], model, api_endpoint, prompt), axis=1)
         else:
             df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").head(size_manual_eval)
     else:
-        df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["paraphrased_question"], x[f"{model}_response"], model, api_endpoint), axis=1)
+        df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["paraphrased_question"], x[f"{model}_response"], model, api_endpoint, prompt), axis=1)
     
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved llm eval")
     return df
     
-def eval_llm_logic(dataset: str, model_response: str, model: str, api_endpoint: str) -> int:
+def eval_llm_logic(dataset: str, model_response: str, model: str, api_endpoint: str, prompt: str) -> int:
     payload = {
         "model": model,
-        "prompt": "Respond with a single word. Are the following sentences semantically the same?\n" + str(dataset) + "\n" + str(model_response)
+        "prompt": prompt + str(dataset) + "\n" + str(model_response)
     }
     response = requests.post(api_endpoint, json=payload, stream=True)
     response_text = ""
@@ -261,7 +261,69 @@ def recall(true_positives, false_negatives):
 def f1(precision, recall):
     return 2*precision*recall / (precision + recall)
 
+def stats(df, size_manual_eval):
+    eval_manual_llm_same = df.head(size_manual_eval)[(df['eval_manual'] == df['eval_llm'])].shape[0]
+    eval_manual_llm_true_positives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
+    eval_manual_llm_false_positives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
+    eval_manual_llm_false_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
+    eval_manual_llm_true_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 0)].shape[0]
+    eval_llm_total_1 = df[df['eval_llm'] == 1].shape[0]
 
+    llm_accuracy = accuracy(eval_manual_llm_same, size_manual_eval)
+    llm_precision = precision(eval_manual_llm_true_positives, eval_manual_llm_false_positives)
+    llm_recall = recall(eval_manual_llm_true_positives, eval_manual_llm_false_negatives)
+    llm_f1 = f1(llm_precision, llm_recall)
+
+    print("LLM")
+    print(f"Accuracy: {llm_accuracy}")
+    print(f"Precision: {llm_precision}")
+    print(f"Recall: {llm_recall}")
+    print(f"F1 Score: {llm_f1}")
+    print(f"Totally evaluated as correct by model: {eval_llm_total_1} out of {df.shape[0]}")
+    print(f"Second LLM run made {eval_manual_llm_false_positives + eval_manual_llm_false_negatives} mistakes")
+    print(f"Actual good results are {eval_manual_llm_true_positives} out of {size_manual_eval}")
+
+    eval_bert_min = df['eval_bert'].min()
+    eval_bert_max = df['eval_bert'].max()
+    eval_bert_average = df['eval_bert'].mean()
+    eval_bert_median = df['eval_bert'].median()
+    eval_bert_mode = df['eval_bert'].mode()[0]
+
+    print("Eval BERT Statistics")
+    print(f"Min: {eval_bert_min}")
+    print(f"Max: {eval_bert_max}")
+    print(f"Average: {eval_bert_average}")
+    print(f"Median: {eval_bert_median}")
+    print(f"Mode: {eval_bert_mode}")
+
+    # Plot BERT values
+    plt.hist(df['eval_bert'], bins=10)
+    plt.xlabel('BERT Values')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of BERT Values')
+    plt.show()
+
+    eval_bleu_min = df['eval_bleu'].min()
+    eval_bleu_max = df['eval_bleu'].max()
+    eval_bleu_average = df['eval_bleu'].mean()
+    eval_bleu_median = df['eval_bleu'].median()
+    eval_bleu_mode = df['eval_bleu'].mode()[0]
+
+
+
+    print("Eval BLEU Statistics")
+    print(f"Min: {eval_bleu_min}")
+    print(f"Max: {eval_bleu_max}")
+    print(f"Average: {eval_bleu_average}")
+    print(f"Median: {eval_bleu_median}")
+    print(f"Mode: {eval_bleu_mode}")
+
+    # Plot BLEU values
+    plt.hist(df['eval_bleu'], bins=10)
+    plt.xlabel('BLEU Values')
+    plt.ylabel('Frequency')
+    plt.title('Distribution of BLEU Values')
+    plt.show()
 
 
 
@@ -282,6 +344,7 @@ Are Jeff Bridges and Lane Chandler both photographers?<|eot_id|><|start_header_i
 """
 #"Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: "
 size_manual_eval = 30
+prompt_is_equal = "Respond with a single word. Are the following sentences semantically the same?\n"
 
 # Load data
 df = load_lc(load_limit)
@@ -291,71 +354,11 @@ df = use_llm(df, model, api_endpoint, load_limit, prompt_translate)
     # 1 - manual 0/1
 df = eval_manual(df, model, size_manual_eval)
     # 2 - LLM
-df = eval_llm(df, model, api_endpoint, size_manual_eval)
+df = eval_llm(df, model, api_endpoint, size_manual_eval, prompt_is_equal)
     # 3 - MLP
         # BERT
 df = eval_mlp_bert(df, model, load_limit)
         # BLEU
 df = eval_mlp_bleu(df, model, load_limit)
 
-
-eval_manual_llm_same = df.head(size_manual_eval)[(df['eval_manual'] == df['eval_llm'])].shape[0]
-eval_manual_llm_true_positives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
-eval_manual_llm_false_positives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
-eval_manual_llm_false_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
-eval_manual_llm_true_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 0)].shape[0]
-eval_llm_total_1 = df[df['eval_llm'] == 1].shape[0]
-
-llm_accuracy = accuracy(eval_manual_llm_same, size_manual_eval)
-llm_precision = precision(eval_manual_llm_true_positives, eval_manual_llm_false_positives)
-llm_recall = recall(eval_manual_llm_true_positives, eval_manual_llm_false_negatives)
-llm_f1 = f1(llm_precision, llm_recall)
-
-print("LLM")
-print(f"Accuracy: {llm_accuracy}")
-print(f"Precision: {llm_precision}")
-print(f"Recall: {llm_recall}")
-print(f"F1 Score: {llm_f1}")
-print(f"Totally evaluated as correct by model: {eval_llm_total_1} out of {df.shape[0]}")
-
-eval_bert_min = df['eval_bert'].min()
-eval_bert_max = df['eval_bert'].max()
-eval_bert_average = df['eval_bert'].mean()
-eval_bert_median = df['eval_bert'].median()
-eval_bert_mode = df['eval_bert'].mode()[0]
-
-print("Eval BERT Statistics")
-print(f"Min: {eval_bert_min}")
-print(f"Max: {eval_bert_max}")
-print(f"Average: {eval_bert_average}")
-print(f"Median: {eval_bert_median}")
-print(f"Mode: {eval_bert_mode}")
-
-# Plot BERT values
-plt.hist(df['eval_bert'], bins=10)
-plt.xlabel('BERT Values')
-plt.ylabel('Frequency')
-plt.title('Distribution of BERT Values')
-plt.show()
-
-eval_bleu_min = df['eval_bleu'].min()
-eval_bleu_max = df['eval_bleu'].max()
-eval_bleu_average = df['eval_bleu'].mean()
-eval_bleu_median = df['eval_bleu'].median()
-eval_bleu_mode = df['eval_bleu'].mode()[0]
-
-
-
-print("Eval BLEU Statistics")
-print(f"Min: {eval_bleu_min}")
-print(f"Max: {eval_bleu_max}")
-print(f"Average: {eval_bleu_average}")
-print(f"Median: {eval_bleu_median}")
-print(f"Mode: {eval_bleu_mode}")
-
-# Plot BLEU values
-plt.hist(df['eval_bleu'], bins=10)
-plt.xlabel('BLEU Values')
-plt.ylabel('Frequency')
-plt.title('Distribution of BLEU Values')
-plt.show()
+stats(df, size_manual_eval)
