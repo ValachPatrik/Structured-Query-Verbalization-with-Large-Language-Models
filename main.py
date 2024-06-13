@@ -134,6 +134,7 @@ def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd
     print(min(size_manual_eval, len(df.index)))
     # print('/DEBUG/')
     # for i in range(31, 61):
+    #     print("Respond with a single word. Are the following sentences semantically the same?:")
     #     print(df.at[len(df.index) - i, 'paraphrased_question'])
     #     print(df.at[len(df.index) - i, f'{model}_response'] + '<|eot_id|><|start_header_id|>assistant<|end_header_id|>')  
     #     print('XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>') 
@@ -403,119 +404,119 @@ prompt_is_equal = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a AI comparator of sentences comparing if their semantic is the same.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Does Vest-vassdraget have a throughput of 2697.672?
-Is the total flow of Vest-vassdraget exactly 2697.672 cubic meters per second?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Does the water flow rate of Vest-vassdraget equal 2697.672?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What is the title of a Cayenne Pepper that too has dates?
-What is the name of the place or thing that Cayenne Pepper was named after, which originated in 1664?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the pepper, named after which, has an origin dating back to 1664?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 How is the naval artillery wirh the smallest firing range called?
-List the naval artillery that can fire at a distance, in order from shortest to longest range?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What are the five naval artillery pieces, listed in order from shortest to longest effective firing range?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Where at Passy Cementery is Fernandel buried?
-What is the burial location of Fernandel's remains?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What is the date of death for Fernandel, buried at Passy Cemetery?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What is hooked up by way of Archbishop of Canterbury, who is a male?
-Who, a male, established the Archbishop of Canterbury?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Who is the male founder of the office of the Archbishop of Canterbury?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What is a purpose of dying that begins with the letter "p" and can be located on a CT scan?
-Identify the causes of death that have been diagnosed through a CT scan and start with P.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What are the names of causes of death that have been diagnosed through a CT scan and start with P?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Which borders of borders of Riverside have a begin date of 1984-0-0?
-What city or place is neighboring Riverside, having its beginning in 1984?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
+When was Riverside founded, which is bordered by another city that started or began operating in 1984?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 On what date was Triple Crown Trophy given to Secretariat?
-What year did Secretariat win the Triple Crown Trophy?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the year {Triple Crown winner} won the award?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Are there more than survivors of the Charkhi Dadri mid-air collision
-Were there zero survivors in the mid-air collision that occurred in Charkhi Dadri?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Was there no survivor in the mid-air collision that occurred at Charkhi Dadri?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Former champion Francisco Alarcon gave what award to Art Spiegelaman?
-Who is the recipient of an award that was won by Francisco X. Alarcón, also known as a winner of Art Spiegelman?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What award did Francisco X. Alarcón win, as won by Art Spiegelman?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Not applicable
-Name each book that contains the Septuagint.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What ancient writings have an edition or translation known as the Septuagint?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 When was the companion separated Nero in 9-6-68?
-What is the date of death of Nero, which contains '68 6 9'?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+Who was emperor when Nero died on June 9, 68?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 The football association regulates what organization?
-What is the governing body that oversees association football?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What international governing body regulates the sport of association football?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 In what year was Nicaragua's population 3.87732 million?
-What is the total area of Nicaragua?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the latitude of Nicaragua?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Located in the Central District, what is the county seat whose twin cities include Feodosiya?
-What is the capital city that is paired with Feodosiia, having a twinning arrangement?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
-Respond with a single word. Are the following sentences semantically the same?:
-Where did the Golden Horde live in?
-What country was ruled by the Golden Horde?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the capital of Central District that has a twin city or administrative partnership with Feodosiia?<|eot_id|><|start_header_id|>assistant<|end_header_id|>        
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
+Where did the Golden Horde live in?
+What was the country ruled by the Golden Horde?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
+Respond with a single word. Are the following sentences semantically the same?:
 Of the century breaks of the Colm Gilcreest rise to less than 9.6?
-Is the maximum number of centuries made by Colm Gilcreest less than 9.6?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Did Colm Gilcreest make centuries in his career that are less than 9.6?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What majestic state supplanted the Kingdom of Incredible Britain?
-What is the country that replaced the Kingdom of Great Britain?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What country replaced the Kingdom of Great Britain?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Which species is the ecia139-4120 protein found in?
-Where does the species that contains the hypothetical protein ECIAI39_4120 live?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+In which environment or ecosystem is ECIAI39_4120, a hypothetical protein, typically found?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What kind of career in the screenwriting field does Grigori Kozintsev have?
-What was the occupation that involved writing for the screen that Grigori Kozintsev had?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the job or profession that Grigori Kozintsev was involved in, specifically focused on writing for films?<|eot_id|><|start_header_id|>assistant<|end_header_id|>  
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What year did Emmerson Mnangagwa start at the University of Zambia?
-What is the alma mater year of Emmerson Mnangagwa from the University of Zambia?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What is the date of graduation or academic award received by Emmerson Mnangagwa from the University of Zambia?<|eot_id|><|start_header_id|>assistant<|end_header_id|>    
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 In Indonesia, is the average life expectancy 55.3528?
-Is the average lifespan of Indonesia approximately 55.35 years?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Is the average lifespan of people in Indonesia exactly 55 years and 20 months?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Where is the geographic center of Michigan using the gravity center of the surface?
-What is the capital city of Michigan's geographical area?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What is the geographic point that serves as the central location for the state boundaries of Michigan?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What product that contains paraffin wax has the lowest usage per capita?
-What are the names of five products that contain paraffin wax and have a specific usage rate per person?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What are the top 5 products, ranked by their per capita consumption, that contain or use paraffin wax as a component?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 On what date did Pablo Picasso end his partnership with Fernade Oliver?
-When did Pablo Picasso date Fernande Olivier?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What is the date of marriage between Pablo Picasso and Fernande Olivier?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What was the date that The St. Louis Literary Award was aquired by James Thomas Farrell.
-Who was the recipient of the St. Louis Literary Award, honored in the year specified by the date value?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-No.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What is the year that James Thomas Farrell received the St. Louis Literary Award?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 What country has the highest taxes?
-What are the names of countries with their highest tax rates in descending order, limited to the top 5?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+What are the top 5 countries by their highest individual income tax rates, listed in descending order?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Is 11 the maximum age of St. Peters Junior School?
-Is the maximum age of students at St Peter's Junior School 11 years old?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
+What is the maximum age for students at St Peter's Junior School, which is 11 years old?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Who is Hank Azaria married to ?
-Who is the unmarried partner and the spouse of Hank Azaria?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Who is Hank Azaria's unmarried partner and who is his spouse?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 No.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
 Did Brittany Murphy have USA citizenship?
