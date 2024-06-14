@@ -280,6 +280,8 @@ def f1(precision, recall):
 
 def stats(df, size_manual_eval):
     eval_manual_llm_same = df.head(size_manual_eval)[(df['eval_manual'] == df['eval_llm'])].shape[0]
+    eval_manual_llm_true = df.head(size_manual_eval)[(df['eval_manual'] == 1)].shape[0]
+    eval_manual_llm_false = df.head(size_manual_eval)[(df['eval_manual'] == 0)].shape[0]
     eval_manual_llm_true_positives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
     eval_manual_llm_false_positives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
     eval_manual_llm_false_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
@@ -291,14 +293,17 @@ def stats(df, size_manual_eval):
     llm_recall = recall(eval_manual_llm_true_positives, eval_manual_llm_false_negatives)
     llm_f1 = f1(llm_precision, llm_recall)
 
-    print("LLM")
+    print("LLM2")
     print(f"Accuracy: {llm_accuracy}")
     print(f"Precision: {llm_precision}")
     print(f"Recall: {llm_recall}")
     print(f"F1 Score: {llm_f1}")
+    print()
+    
     print(f"Totally evaluated as correct by model: {eval_llm_total_1} out of {df.shape[0]}")
+    print(f"First LLM run made {eval_manual_llm_true} correct, {eval_manual_llm_false} mistakes")
     print(f"Second LLM run made {eval_manual_llm_false_positives + eval_manual_llm_false_negatives} mistakes")
-    print(f"Actual good results are {eval_manual_llm_true_positives} out of {size_manual_eval}")
+    print(f"Final good results are {eval_manual_llm_true_positives} out of {size_manual_eval}")
 
     eval_bert_min = df['eval_bert'].min()
     eval_bert_max = df['eval_bert'].max()
@@ -306,6 +311,7 @@ def stats(df, size_manual_eval):
     eval_bert_median = df['eval_bert'].median()
     eval_bert_mode = df['eval_bert'].mode()[0]
 
+    print()
     print("Eval BERT Statistics")
     print(f"Min: {eval_bert_min}")
     print(f"Max: {eval_bert_max}")
@@ -327,7 +333,7 @@ def stats(df, size_manual_eval):
     eval_bleu_mode = df['eval_bleu'].mode()[0]
 
 
-
+    print()
     print("Eval BLEU Statistics")
     print(f"Min: {eval_bleu_min}")
     print(f"Max: {eval_bleu_max}")
@@ -522,6 +528,7 @@ Respond with a single word. Are the following sentences semantically the same?:
 Did Brittany Murphy have USA citizenship?
 Was Brittany Murphy a citizen of the United States of America?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
+Respond with a single word. Are the following sentences semantically the same?\n:
 """
 #"Respond with a single word. Are the following sentences semantically the same?\n"
 model = "llama3"
