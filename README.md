@@ -31,8 +31,12 @@ Room for improvement:
 
 ![image](https://github.com/ValachPatrik/dataengineering/assets/82080194/590921ee-fa2d-4244-a4de-602a693b1862)
 
+Progress is saved after the translation.
+
 ## Evaluation
 We used 4 different evaluating methods and selected the best one to filter out to only correct results that can be used to train LLMs.
+
+Progress is saved after each evaluation, and the user is prompted if he wants to rerun it.
 
 ### Manual Evaluation
 A manual evaluation is created to judge other evaluations to be able to tell 100% how our metrics perform.
@@ -73,7 +77,7 @@ Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu \
 
 Min: 0.0 \
 Max: 0.8153551038173115 \
-Average: 0.08747699091088278 \
+Average: 0.08747699091088278 I am running a few minutes late; my previous meeting is running over.
 
 <img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/adb6629a-9f44-4011-b79c-b2dce23c8e1b" alt="image" width="300"/>
 
@@ -81,6 +85,9 @@ The BLEU metric has not correctly identified which ones are the same.
 
 Room for improvement:
 - Change up the weights
+
+### Display Statistics
+Code returns statistics of each evaluation and creates graphs for BERT, BLEU and the final subset of filtered manual evaluation.
 
 ## Final Filtering
 The final filter of translated prompts is done with the BERT metric. \
