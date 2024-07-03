@@ -1,5 +1,5 @@
 # STRUCTURED QUERY VERBALIZATION WITH LARGE LANGUAGE MODELS
-This project has been developed by Patrik Valach & Louisa Siebel under the supervision of Tim Schwabe in the Technical University of Munich (TUM) course Data Engineering led by Prof. Maribel Acosta.
+This project has been developed by Patrik Valach (patrik.valach@tum.de) & Louisa Siebel (ge94seq@mytum.de) under the supervision of Tim Schwabe in the Technical University of Munich (TUM) course Data Engineering led by Prof. Maribel Acosta.
 
 This project aims to provide a way of generating data for training LLMs for the specific use case of creating SQL queries from natural language.
 This is done by doing the process in reverse, as there are many SQL query examples but not enough natural language ones. Thus, creating an LLM translator proven to give correct translations can be further used to create more data for training.
@@ -96,7 +96,11 @@ The final amount is approximately halved from the number of translated prompts, 
 It could be lowered to increase the amount, but that would also introduce occasional faulty examples.\
 Also, training the translation LLM better or choosing a stronger model could help reduce this threshold.
 
-## Contact
-Patrik Valach patrik.valach@tum.de
-
-Louisa Siebel ge94seq@mytum.de
+## How to use
+Just run the script and follow its instructions to create the final filtered dataset.\
+If you use llama3 as we did, you must run its API locally or give a different connection.\
+Remove the example CSV and TXT files to start without our data run.\
+Each file is a progress save in the creation of the final dataset.\
+Change parameters at the bottom of the script.\
+Modify what is needed for your use case (dataset, columns, model, number of examples, prompts, filter metric,...)\
+We wish you fun.
