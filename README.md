@@ -83,6 +83,11 @@ Room for improvement:
 - Change up the weights
 
 ## Final Filtering
+The final filter of translated prompts is done with the BERT metric. \
+The exact value has been set to 0.88 to eliminate all incorrectly translated prompts and ensure we don't create faulty data.\
+The final amount is approximately halved from the number of translated prompts, but that is the cost of having high quality.\
+It could be lowered to increase the amount, but that would also introduce occasional faulty examples.\
+Also, training the translation LLM better or choosing a stronger model could help reduce this threshold.
 
 ## Contact
 Patrik Valach patrik.valach@tum.de
