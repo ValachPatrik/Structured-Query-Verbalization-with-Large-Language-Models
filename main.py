@@ -1,17 +1,13 @@
 import os
 import re
 import requests
-import json
-import math
 import pandas as pd
 from typing import *
 from wikidata.client import Client
 from datasets import load_dataset
 from transformers import BertTokenizer, BertModel
-import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import nltk
 from nltk.translate.bleu_score import sentence_bleu
 
 def find_translatable_parts(sparql_query: str) -> List[str]:
@@ -42,18 +38,18 @@ def map_wikidata_to_natural_language(sparql_query:str) -> str:
 def load_lc(load_limit: int) -> pd.DataFrame:
     if os.path.exists("lc_quad_translated.csv"):
         # Load locally if data is already locally ready
-        combined_df = pd.read_csv("lc_quad_translated.csv").head(load_limit)
+        combined_df = pd.read_csv("lc_quad_translated.csv").iloc[:load_limit]
         print("Loaded from local")
     else:
         # Load data from net
-        lc_quad_dataset = load_dataset("lc_quad")
+        lc_quad_dataset = load_dataset("lc_quad", trust_remote_code=True)
 
         # combine both datasets test and train, we dont need this kind of differentiation
         train_df = lc_quad_dataset["train"].to_pandas()
         test_df = lc_quad_dataset["test"].to_pandas()
         combined_df = pd.concat([train_df, test_df], ignore_index=True)
         
-        combined_df = combined_df.head(load_limit)
+        combined_df = combined_df.iloc[:load_limit]
 
         # Apply KG to map from ambiguous descriptions to NL
         combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(map_wikidata_to_natural_language)
@@ -66,12 +62,6 @@ def load_lc(load_limit: int) -> pd.DataFrame:
         
         print(f"Loaded from net, load limit is {load_limit}")
     print(f"Loaded {len(combined_df.index)} rows")
-    # print('/DEBUG/')
-    # for i in range(1, 31):
-    #     print(combined_df.at[len(combined_df.index) - i, 'question'])
-    #     print(combined_df.at[len(combined_df.index) - i, 'paraphrased_question'])
-    #     print(combined_df.at[len(combined_df.index) - i, 'wikidata_translated'])
-    # print('//DEBUG//')
     return combined_df
 
 
@@ -97,10 +87,10 @@ def generate_response_llama(sparql_query: str, model: str, api_endpoint: str, pr
 def use_llm(df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, prompt: str) -> pd.DataFrame:
     if os.path.exists(f"lc_quad_translated_{model}.csv"):
         # Load locally if data is already locally ready
-        df = pd.read_csv(f"lc_quad_translated_{model}.csv").head(load_limit)
+        df = pd.read_csv(f"lc_quad_translated_{model}.csv").iloc[:load_limit]
         print("Loaded from local model responses")
     else:
-        df = df.head(load_limit)
+        df = df.iloc[:load_limit]
         df[f'{model}_response'] = df['wikidata_translated'].apply(lambda x: generate_response_llama(x, model, api_endpoint, prompt))
     
         df.to_csv(f"lc_quad_translated_{model}.csv", index=False)
@@ -132,13 +122,14 @@ def eval_manual(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd.DataF
 def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd.DataFrame:
     print("Creating manual evaluation")
     print(min(size_manual_eval, len(df.index)))
-    # print('/DEBUG/')
-    # for i in range(31, 61):
-    #     print("Respond with a single word. Are the following sentences semantically the same?:")
-    #     print(df.at[len(df.index) - i, 'paraphrased_question'])
-    #     print(df.at[len(df.index) - i, f'{model}_response'] + '<|eot_id|><|start_header_id|>assistant<|end_header_id|>')  
-    #     print('XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>') 
-    # print('//DEBUG//')
+    
+    print("Do you have a prompt in constants for manual eval? (y/n)")
+    answer = input()
+    if answer != "y":
+        generate_compare_prompt(df, model)
+        print("Please manually create the prompt by changing the XXX values for the actual answer and run the program again")
+        exit()
+    
     for i in range(min(size_manual_eval, len(df.index))):
         print(i)
         print(f"Dataset: {df.at[i, 'question']}, {df.at[i, 'paraphrased_question']}")
@@ -156,7 +147,7 @@ def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd
 
 
 def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: int, prompt: str) -> pd.DataFrame:
-    df = df.head(size_manual_eval)
+    df = df.iloc[:size_manual_eval]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
         print(f"Evaluated file already exists. Do you want to overwrite/add llm eval? (y/n)")
@@ -164,7 +155,7 @@ def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: 
         if answer == "y":
             df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['paraphrased_question'], x[f'{model}_response'], model, api_endpoint, prompt), axis=1)
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").head(size_manual_eval)
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:size_manual_eval]
     else:
         df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["paraphrased_question"], x[f"{model}_response"], model, api_endpoint, prompt), axis=1)
     
@@ -198,7 +189,7 @@ def eval_llm_logic(dataset: str, model_response: str, model: str, api_endpoint: 
 
 
 def eval_mlp_bert(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame:
-    df = df.head(load_limit)
+    df = df.iloc[:load_limit]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
         print(f"Evaluated file already exists. Do you want to overwrite/add bert eval? (y/n)")
@@ -206,7 +197,7 @@ def eval_mlp_bert(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame
         if answer == "y":
             df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").head(load_limit)
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:load_limit]
     else:
         df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
     
@@ -215,10 +206,6 @@ def eval_mlp_bert(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame
     return df
 
 def eval_bert_logic(dataset: str, model_response: str):
-    # scorer = BERTScorer(model_type='bert-base-uncased')
-    # P, R, F1 = scorer.score([dataset], [model_response])
-    # print(f"BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
-    # return (P, R, F1)
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = BertModel.from_pretrained("bert-base-uncased")
 
@@ -238,7 +225,7 @@ def eval_bert_logic(dataset: str, model_response: str):
 
 
 def eval_mlp_bleu(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame:
-    df = df.head(load_limit)
+    df = df.iloc[:load_limit]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
         print(f"Evaluated file already exists. Do you want to overwrite/add bleu eval? (y/n)")
@@ -246,7 +233,7 @@ def eval_mlp_bleu(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame
         if answer == "y":
             df['eval_bleu'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x["question"], x[f"{model}_response"]), axis=1)
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").head(load_limit)
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:load_limit]
     else:
         df['eval_bleu'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x["question"], x[f"{model}_response"]), axis=1)
     
@@ -264,7 +251,7 @@ def eval_bleu_logic(dataset1: str, dataset2: str, model_response: str):
     dataset = [dataset1, dataset2]
     reference = [question.split(" ") for question in dataset]
     predictions = model_response.split(" ")
-    score = sentence_bleu(reference, predictions) # TODO may need to play with weights
+    score = sentence_bleu(reference, predictions) # TODO weights could help to make this evaluation useful
     return score
 
 
@@ -279,13 +266,13 @@ def f1(precision, recall):
     return 2*precision*recall / (precision + recall)
 
 def stats(df, size_manual_eval):
-    eval_manual_llm_same = df.head(size_manual_eval)[(df['eval_manual'] == df['eval_llm'])].shape[0]
-    eval_manual_llm_true = df.head(size_manual_eval)[(df['eval_manual'] == 1)].shape[0]
-    eval_manual_llm_false = df.head(size_manual_eval)[(df['eval_manual'] == 0)].shape[0]
-    eval_manual_llm_true_positives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
-    eval_manual_llm_false_positives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
-    eval_manual_llm_false_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
-    eval_manual_llm_true_negatives = df.head(size_manual_eval)[(df['eval_manual'] == 0) & (df['eval_llm'] == 0)].shape[0]
+    eval_manual_llm_same = df.iloc[:size_manual_eval][(df['eval_manual'] == df['eval_llm'])].shape[0]
+    eval_manual_llm_true = df.iloc[:size_manual_eval][(df['eval_manual'] == 1)].shape[0]
+    eval_manual_llm_false = df.iloc[:size_manual_eval][(df['eval_manual'] == 0)].shape[0]
+    eval_manual_llm_true_positives = df.iloc[:size_manual_eval][(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
+    eval_manual_llm_false_positives = df.iloc[:size_manual_eval][(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
+    eval_manual_llm_false_negatives = df.iloc[:size_manual_eval][(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
+    eval_manual_llm_true_negatives = df.iloc[:size_manual_eval][(df['eval_manual'] == 0) & (df['eval_llm'] == 0)].shape[0]
     eval_llm_total_1 = df[df['eval_llm'] == 1].shape[0]
 
     llm_accuracy = accuracy(eval_manual_llm_same, size_manual_eval)
@@ -304,6 +291,12 @@ def stats(df, size_manual_eval):
     print(f"First LLM run made {eval_manual_llm_true} correct, {eval_manual_llm_false} mistakes")
     print(f"Second LLM run made {eval_manual_llm_false_positives + eval_manual_llm_false_negatives} mistakes")
     print(f"Final good results are {eval_manual_llm_true_positives} out of {size_manual_eval}")
+    
+    print()
+    print(f"tp: {eval_manual_llm_true_positives}")
+    print(f"tn: {eval_manual_llm_true_negatives}")
+    print(f"fp: {eval_manual_llm_false_positives}")
+    print(f"fn: {eval_manual_llm_false_negatives}")
 
     eval_bert_min = df['eval_bert'].min()
     eval_bert_max = df['eval_bert'].max()
@@ -348,64 +341,66 @@ def stats(df, size_manual_eval):
     plt.title('Distribution of BLEU Values')
     plt.show()
 
+def generate_translate_prompt(size: int):
+    if os.path.exists(f"translate_prompt.txt"):
+        print("Loaded prompt from local")
+        with open("translate_prompt.txt", "r", encoding="utf-8") as file:
+            content = file.read()
+        if content != "":
+            return content
 
+    print("Generating prompt...it might take a while.")
+    lc_quad_dataset = load_dataset("lc_quad", trust_remote_code=True)
 
+    # combine both datasets test and train, we dont need this kind of differentiation
+    train_df = lc_quad_dataset["train"].to_pandas()
+    test_df = lc_quad_dataset["test"].to_pandas()
+    combined_df = pd.concat([train_df, test_df], ignore_index=True)
+    length = len(combined_df.index)
+    combined_df = combined_df.iloc[length - size:] # get last "size" amount of elements
+    combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(map_wikidata_to_natural_language)
+    
+    task = "Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: "
+    prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a AI translator for converting sparql queries into normal natural language questions<|eot_id|><|start_header_id|>user<|end_header_id|>\n"""
+
+    print('/Creating translate prompt/')
+    for i in range(length - size, length):
+        prompt += task
+        prompt += combined_df.at[i, 'wikidata_translated']
+        prompt += "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n"
+        prompt += combined_df.at[i, 'paraphrased_question']
+        prompt += "<|eot_id|><|start_header_id|>user<|end_header_id|>\n"
+    prompt += task
+    with open("translate_prompt.txt", "w", encoding="utf-8") as file:
+        file.write(prompt)
+    print('//Translate prompt created//')
+    return prompt
+
+def generate_compare_prompt(df: pd.DataFrame, model: str) -> None:
+    print('/Creating compare prompt template to edit/')
+    for i in range(len(df.index) - 30, len(df.index)):
+        print("Respond with a single word. Are the following sentences semantically the same?:")
+        print(df.at[len(df.index) - i, 'paraphrased_question'])
+        print(df.at[len(df.index) - i, f'{model}_response'] + '<|eot_id|><|start_header_id|>assistant<|end_header_id|>')  
+        print('XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>') 
+    print('//Compare prompt template created//')
+
+def filter_df(df: pd.DataFrame, load_limit: int, bert_limit: float):
+    filtered_df = df.head(load_limit)
+    filtered_df = filtered_df[filtered_df['eval_bert'] >= bert_limit]
+    filtered_df = filtered_df[['question', 'paraphrased_question', 'sparql_wikidata', 'wikidata_translated', 'llama3_response', 'eval_manual', 'eval_bert']]
+    return filtered_df
+
+def final_plot(df: pd.DataFrame, size_manual_eval: int):
+    eval_manual_llm_true = df.iloc[:size_manual_eval][(df['eval_manual'] == 1)].shape[0]
+    eval_manual_llm_false = df.iloc[:size_manual_eval][(df['eval_manual'] == 0)].shape[0]
+    plt.pie([eval_manual_llm_true, eval_manual_llm_false], labels=[f"True {eval_manual_llm_true}", f"False {eval_manual_llm_false}"], autopct='%1.1f%%')
+    plt.title('Final Result Evaluation')
+    plt.show()
 
 # Constants
-prompt_translate = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-You are a AI translator for converting sparql queries into normal natural language questions<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT DISTINCT ?sbj ?sbj_label WHERE { ?sbj instance of physical phenomenon . ?sbj rdfs:label ?sbj_label . FILTER(CONTAINS(lcase(?sbj_label), 'surface')) . FILTER (lang(?sbj_label) = 'en') } LIMIT 25<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Let me know physical marvel whose title has the word surface in it.<|eot_id|>
-<|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: ASK WHERE { Algeria total fertility rate ?obj filter(?obj > 3.4284) }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Is the entire richness rate of Algeria more noteworthy than 3.4284?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?obj WHERE { John de Mol p:P166 ?s . ?s ps:P166 ?obj . ?s pq:P585 ?x filter(contains(YEAR(?x),'2011')) }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-in 2011 John de Mol won which award?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: select distinct ?obj where { Sasha Grey contributed to creative work ?obj . ?obj instance of musical duo }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Say the melodic related work highlighting the work of Sasha Grey.<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: select distinct ?obj where { Deadpool performer ?obj . ?obj instance of human }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Who was the lead performing artist for the motion picture Deadpool?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Ultima III: Exodus part of the series ?X . ?X input device ?answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Who organizes the arrange of Ultima III: Departure?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT DISTINCT ?sbj ?sbj_label WHERE { ?sbj instance of Greek deity . ?sbj sibling Zeus . ?sbj rdfs:label ?sbj_label . FILTER(CONTAINS(lcase(?sbj_label), 'poseidon')) . FILTER (lang(?sbj_label) = 'en') } LIMIT 25<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Let me know the Greek deity of kin of Zeus which contains the word poseidon in it's name?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: select distinct ?obj where { Alexander McQueen employer ?obj . ?obj instance of business }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What's the name of Alexander McQueen's business?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Shigeno Yasutsugu student of ?X . ?X student ?answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Who was the instructor that administered Shigeno Yasutsugu?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT DISTINCT ?sbj ?sbj_label WHERE { ?sbj instance of empire . ?sbj coat of arms royal coat of arms of the United Kingdom . ?sbj rdfs:label ?sbj_label . FILTER(CONTAINS(lcase(?sbj_label), 'british')) . FILTER (lang(?sbj_label) = 'en') } LIMIT 25<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Title an realm that contains the word "british" in its name<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Grande Odalisque depicts ?answer . ?answer direction relative to location backwards}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What does the portray Review Odalisque speak to which has DRTL backwards?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Qur’an author ?X . ?X relative ?answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Give me the name of the brother in law of the writer of Quran.<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT DISTINCT ?sbj ?sbj_label WHERE { ?sbj instance of horse breed . ?sbj rdfs:label ?sbj_label . FILTER(STRSTARTS(lcase(?sbj_label), 'z')) . FILTER (lang(?sbj_label) = 'en') } LIMIT 25<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Tell me each and every horse breed whose identify begins with the letter z<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Minigun ammunition ?answer . ?answer conflict Vietnam War}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What is the ammunition of the weapon, that has been used in the conflict in Southeast Asia?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Lily Tomlin award received ?X . ?X winner ?answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Who is {champ} of {prize granted} {Lily Tomlin} ?TARD ?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { New York Centaurs home venue ?X . ?X architect ?answer}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-who engineering firm of domestic field of modern york centaurs?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?obj WHERE { hydrogen peroxide p:P2054 ?s . ?s ps:P2054 ?obj . ?s pq:P2076 ?x filter(contains(?x,'20.0')) }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What is hydrogen peroxide's density at twenty degrees?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: ASK WHERE { Merion Golf Club slope rating ?obj filter(?obj = 149) }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Is the slope rating of the Merion Golf Club 149?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: select distinct ?obj where { Janet Jackson record label ?obj . ?obj instance of record label }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What is the record label signed by Janet Jackson?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?obj WHERE { Hans Krebs p:P166 ?s . ?s ps:P166 ?obj . ?s pq:P585 ?x filter(contains(YEAR(?x),'1966')) }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What is {grant gotten} of {Hans Krebs} where {point in time} is {1966-0-0} ?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: select distinct ?sbj where { ?sbj fictional universe described in The Matrix . ?sbj instance of fictional universe }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Mention the fictional universe described or included in The Matrix.<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT DISTINCT ?sbj ?sbj_label WHERE { ?sbj instance of film character . ?sbj from narrative universe Marvel Universe . ?sbj rdfs:label ?sbj_label . FILTER(STRSTARTS(lcase(?sbj_label), 'w')) . FILTER (lang(?sbj_label) = 'en') } LIMIT 25<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Give me a movie personality from a fictional universe, such as Marvel comics that starts with a W.<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: SELECT ?answer WHERE { Infinite Jest narrative location ?answer . ?answer shares border with Quincy}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-What is {located next to Quincy,} in the {novel, Infinite Jest}?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: ASK WHERE { Aleister Crowley educated at Trinity College . Aleister Crowley educated at Eton College }<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-Did Aleister Crowley receive his education at Trinity College and Eton College?<|eot_id|><|start_header_id|>user<|end_header_id|>
-Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: 
-"""
-#"Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: "
+prompt_translate = generate_translate_prompt(1000)
 prompt_is_equal = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a AI comparator of sentences comparing if their semantic is the same.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
@@ -530,12 +525,13 @@ Was Brittany Murphy a citizen of the United States of America?<|eot_id|><|start_
 Yes.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?\n:
 """
-#"Respond with a single word. Are the following sentences semantically the same?\n"
+
 model = "llama3"
 api_endpoint = "http://localhost:11434/api/generate"
-load_limit = 100
+load_limit = 1000
 size_manual_eval = 40
 
+bert_limit = 0.88
 
 # Load data
 df = load_lc(load_limit)
@@ -554,7 +550,9 @@ df = eval_mlp_bleu(df, model, load_limit)
 
 stats(df, size_manual_eval)
 
+filtered_df = filter_df(df, load_limit, bert_limit)
+print(filtered_df)
 
+final_plot(filtered_df, size_manual_eval)
 
-# XXX The 41-70 are used to train second LLM run - DO NOT USE FOR ACTUAL RUN
-# XXX The 71-100 are used to train first LLM run - DO NOT USE FOR ACTUAL RUN
+# XXX The 71-100 are used to train compare LLM run
