@@ -61,7 +61,7 @@ Room for improvement:
 - Automatically generate the prompt by asking the model to give a set of semantically same sentences, potentially improving the comparison quality.
 
 ### BLEU - Failed Evaluation
-Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu \
+Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu 
 
 Min: 0.0 \
 Max: 0.8153551038173115 \
@@ -77,7 +77,7 @@ Room for improvement:
 ### BERT - Winner
 Using BLEU from https://huggingface.co/docs/transformers/en/model_doc/bert \
 Converts text to vector \
-Semantically indifferent text will give vectors that are close to each other \
+Semantically indifferent text will give vectors that are close to each other 
 
 Min: 0.41958645 \
 Max: 0.9939645 \
