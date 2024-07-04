@@ -98,10 +98,9 @@ The threshold could be lowered to increase this number of outputted translations
 Unless another model or bigger prompt is used to move the threshold down while maintaining accuracy.
 
 ## How to use
-Just run the script and follow its instructions to create the final filtered dataset.\
-If you use llama3 as we did, you must run its API locally or give a different connection.\
-Remove the example CSV and TXT files to start without our data run.\
+If you use llama3 as we did, you must run it locally (https://ollama.com/library/llama3) or provide a different API endpoint.\
+After that, run the script and follow its instructions to create the final filtered dataset.\
+Remove the example CSV and TXT files to start fresh without our data run.\
 Each file is a progress save in the creation of the final dataset.\
-Change parameters at the bottom of the script.\
-Modify what is needed for your use case (dataset, columns, model, number of examples, prompts, filter metric,...)\
-We wish you fun.
+Change the parameters at the bottom of the script to suit your needs.\
+Modify what is needed for your use case (dataset, columns, model, number of examples, prompts, filter metric,...)
