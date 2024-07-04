@@ -1,5 +1,5 @@
 # STRUCTURED QUERY VERBALIZATION WITH LARGE LANGUAGE MODELS
-This project has been developed by Patrik Valach (patrik.valach@tum.de) & Louisa Siebel (ge94seq@mytum.de) under the supervision of Tim Schwabe in the Technical University of Munich (TUM) course Data Engineering led by Prof. Maribel Acosta.
+This project has been developed by Patrik Valach (patrik.valach@tum.de) & Louisa Siebel (ge94seq@mytum.de) under the supervision of M.Sc Tim Schwabe in the Technical University of Munich (TUM) course Data Engineering led by Prof. Maribel Acosta.
 
 This project aims to provide a way of generating data for training LLMs for the specific use case of creating SQL queries from natural language.
 This is done by doing the process in reverse, as there are many SQL query examples but not enough natural language ones. Thus, creating an LLM translator proven to give correct translations can be further used to create more data for training.
