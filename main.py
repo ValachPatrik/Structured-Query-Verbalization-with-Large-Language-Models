@@ -597,7 +597,25 @@ def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: in
     plt.ylabel("Frequency")
     plt.title("Distribution of BERT Values")
     plt.show()
+    
+    total_points = 200
+    true_negatives = int(0.24 * total_points)
+    true_positives = int(0.30 * total_points)
+    false_negatives = total_points - true_negatives - true_positives
 
+    # Data for the pie chart
+    labels = ['True Negatives', 'True Positives', 'False Negatives']
+    sizes = [true_negatives, true_positives, false_negatives]
+    colors = ['red', 'green', 'blue']
+
+    # Create the pie chart
+    plt.figure(figsize=(8, 8))
+    plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+    plt.title('Distribution of Data Points')
+    plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+    # Show the plot
+    plt.show()
 
 # Constants
 prompt_translate = generate_translate_prompt(200)
