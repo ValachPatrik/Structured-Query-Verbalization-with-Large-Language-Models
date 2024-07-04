@@ -70,7 +70,7 @@ Max: 0.9939645 \
 Average: 0.8257805704999999 \
 Median: 0.8335725700000001 \
 Mode: 0.41958645 \
-<img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/a25418b2-b630-435d-8cf5-a7e7ccf237e0" alt="image" width="300"/>
+<img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/81ca9710-339f-4e06-976d-14eb5ac34e05" alt="image" width="300"/>
 
 ### BLEU - Failed Evaluation
 Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu \
@@ -79,7 +79,7 @@ Min: 0.0 \
 Max: 0.8153551038173115 \
 Average: 0.08747699091088278 I am running a few minutes late; my previous meeting is running over.
 
-<img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/adb6629a-9f44-4011-b79c-b2dce23c8e1b" alt="image" width="300"/>
+<img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/3ef0c3db-4d31-447f-b354-42b77270da23" alt="image" width="300"/>
 
 The BLEU metric has not correctly identified which ones are the same.
 
@@ -91,8 +91,8 @@ Code returns statistics of each evaluation and creates graphs for BERT, BLEU and
 
 ## Final Filtering
 The final filter of translated prompts is done with the BERT metric. \
-The exact value has been set to 0.88 to eliminate all incorrectly translated prompts and ensure we don't create faulty data.\
-The final amount is approximately halved from the number of translated prompts, but that is the cost of having high quality.\
+The exact value has been set to 0.87 to eliminate all incorrectly translated prompts and ensure we don't create faulty data.\
+The final amount is approximately a third of the number of translated prompts, but that is the cost of having high quality.\
 It could be lowered to increase the amount, but that would also introduce occasional faulty examples.\
 Also, training the translation LLM better or choosing a stronger model could help reduce this threshold.
 
