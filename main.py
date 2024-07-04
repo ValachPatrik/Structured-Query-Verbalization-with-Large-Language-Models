@@ -536,6 +536,8 @@ def generate_compare_prompt(df: pd.DataFrame, model: str) -> None:
 
 
 def filter_df(model: str, load_limit: int, bert_limit: float):
+    if os.path.exists(f"final.csv"):
+        return  pd.read_csv(f"final.csv").head(load_limit)
     print("Filtering final df.")
     filtered_df = pd.read_csv(f"lc_quad_translated_{model}.csv").head(load_limit)
     filtered_df["eval_bert"] = filtered_df.apply(
@@ -557,7 +559,7 @@ def filter_df(model: str, load_limit: int, bert_limit: float):
     return filtered_df
 
 
-def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: int):
+def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: int, threshold: int):
     print("Showing only the manually compared subset of the dataset.")
     filtered_df = filtered_df.head(size_manual_eval)
     joined_df = filtered_df.merge(df, how="left", on="question")
@@ -576,6 +578,24 @@ def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: in
         autopct="%1.1f%%",
     )
     plt.title("Final Result Evaluation")
+    plt.show()
+    
+    
+    counts, bins, patches = plt.hist(df["eval_bert"], bins=200, edgecolor='black')
+    for i, patch in enumerate(patches):
+        if bins[i] < threshold:
+            patch.set_facecolor('blue')
+        else:
+            patch.set_facecolor('green')
+
+    # Add a red vertical line at the threshold
+    plt.axvline(threshold, color='red', linewidth=2)
+    plt.xticks(np.arange(min(df["eval_bert"]), max(df["eval_bert"]), 0.05))
+
+    # Set labels and title
+    plt.xlabel("BERT Values")
+    plt.ylabel("Frequency")
+    plt.title("Distribution of BERT Values")
     plt.show()
 
 
@@ -733,6 +753,6 @@ stats(df, size_manual_eval)
 filtered_df = filter_df(model, load_limit, bert_limit)
 print(filtered_df)
 
-final_plot(filtered_df, df, size_manual_eval)
+final_plot(filtered_df, df, size_manual_eval, bert_limit)
 
 # XXX The 71-100 are used to train compare LLM run
