@@ -64,7 +64,7 @@ It gives a value between [0,1] to measure how many transformations are needed to
 
 Min: 0.0 \
 Max: 0.8153551038173115 \
-Average: 0.08747699091088278 \
+Average: 0.08747699091088278 
 
 <img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/3ef0c3db-4d31-447f-b354-42b77270da23" alt="image" width="300"/>
 
@@ -83,18 +83,19 @@ Min: 0.41958645 \
 Max: 0.9939645 \
 Average: 0.8257805704999999 \
 Median: 0.8335725700000001 \
-Mode: 0.41958645 \
+Mode: 0.41958645 
+
 <img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/81ca9710-339f-4e06-976d-14eb5ac34e05" alt="image" width="300"/>
 
 ### Display Statistics
-Code returns statistics for each evaluation and creates graphs for BERT, BLEU, and the final subset of filtered manual evaluation.
+Code provides statistics for each evaluation and creates graphs for BERT, BLEU, and the final subset of filtered manual evaluation.
 
 ## Final Filtering
 The final filter of translated prompts is done with the BERT metric. \
-The exact value has been set to 0.87 to eliminate all incorrectly translated prompts and ensure we don't create faulty data.\
-The final amount is approximately a third of the number of translated prompts, but that is the cost of having high quality.\
-It could be lowered to increase the amount, but that would also introduce occasional faulty examples.\
-Also, training the translation LLM better or choosing a stronger model could help reduce this threshold.
+The exact value has been set to 0.87 to eliminate all incorrectly translated prompts and ensure we don't create any faulty data.\
+The final number of examples is approximately a third of the number of translated prompts.\
+The threshold could be lowered to increase this number of outputted translations, which would also introduce occasional faulty examples.\
+Unless another model or bigger prompt is used to move the threshold down while maintaining accuracy.
 
 ## How to use
 Just run the script and follow its instructions to create the final filtered dataset.\
