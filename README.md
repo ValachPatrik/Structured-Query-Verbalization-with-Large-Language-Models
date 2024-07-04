@@ -60,18 +60,6 @@ Room for improvement:
 - Train llama for the comparison with more examples in the prompt
 - Automatically generate the prompt by asking the model to give a set of semantically same sentences, potentially improving the comparison quality.
 
-### BERT - Winner
-Using BLEU from https://huggingface.co/docs/transformers/en/model_doc/bert \
-Converts text to vector \
-Semantically indifferent text will give vectors that are close to each other \
-
-Min: 0.41958645 \
-Max: 0.9939645 \
-Average: 0.8257805704999999 \
-Median: 0.8335725700000001 \
-Mode: 0.41958645 \
-<img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/81ca9710-339f-4e06-976d-14eb5ac34e05" alt="image" width="300"/>
-
 ### BLEU - Failed Evaluation
 Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu \
 
@@ -85,6 +73,18 @@ The BLEU metric has not correctly identified which ones are the same.
 
 Room for improvement:
 - Change up the weights
+
+### BERT - Winner
+Using BLEU from https://huggingface.co/docs/transformers/en/model_doc/bert \
+Converts text to vector \
+Semantically indifferent text will give vectors that are close to each other \
+
+Min: 0.41958645 \
+Max: 0.9939645 \
+Average: 0.8257805704999999 \
+Median: 0.8335725700000001 \
+Mode: 0.41958645 \
+<img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/81ca9710-339f-4e06-976d-14eb5ac34e05" alt="image" width="300"/>
 
 ### Display Statistics
 Code returns statistics of each evaluation and creates graphs for BERT, BLEU and the final subset of filtered manual evaluation.
