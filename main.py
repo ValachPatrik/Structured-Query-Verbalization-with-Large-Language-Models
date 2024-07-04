@@ -9,6 +9,7 @@ from transformers import BertTokenizer, BertModel
 import numpy as np
 import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import sentence_bleu
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def find_translatable_parts(sparql_query: str) -> List[str]:
     entity_pattern = re.compile(r'wd:Q\d+')
@@ -19,19 +20,36 @@ def find_translatable_parts(sparql_query: str) -> List[str]:
 
     return entity_matches + property_matches
 
+def translate_part(part: str, client: Client) -> str:
+    try:
+        entity = client.get(part.split(":")[1], load=True)
+        return part, str(entity.label)
+    except Exception as e:
+        print(e, end=" ")
+        print(part)
+        return part, None
+
 def map_wikidata_to_natural_language(sparql_query:str) -> str:
     client = Client()
     
     translatable_parts = find_translatable_parts(sparql_query)
+    translated_parts = {}
     
-    for i in translatable_parts:
-        try:
-            entity = client.get(i.split(":")[1], load=True)
-            sparql_query = sparql_query.replace(i, str(entity.label))
-        except Exception as e:
-            print(e, end=" ")
-            print(i)
-            return None
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_part = {executor.submit(translate_part, part, client): part for part in translatable_parts}
+        
+        for future in as_completed(future_to_part):
+            part = future_to_part[future]
+            translated_part = future.result()
+            if translated_part[1] is not None:
+                translated_parts[translated_part[0]] = translated_part[1]
+
+    for part, translation in translated_parts.items():
+        sparql_query = sparql_query.replace(part, translation)
+
+    if None in translated_parts.values():
+        return None
+    
     return sparql_query
     
 
@@ -52,7 +70,8 @@ def load_lc(load_limit: int) -> pd.DataFrame:
         combined_df = combined_df.iloc[:load_limit]
 
         # Apply KG to map from ambiguous descriptions to NL
-        combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(map_wikidata_to_natural_language)
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            combined_df["wikidata_translated"] = list(executor.map(map_wikidata_to_natural_language, combined_df["sparql_wikidata"]))
         
         # Delete failed rows
         combined_df = combined_df[combined_df["wikidata_translated"] != None]
@@ -72,7 +91,7 @@ def load_lc(load_limit: int) -> pd.DataFrame:
 def generate_response_llama(sparql_query: str, model: str, api_endpoint: str, prompt: str) -> str:
     payload = {
         "model": model,
-        "prompt": prompt + sparql_query + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+        "prompt": prompt + sparql_query + "assistant"
     }
     response = requests.post(api_endpoint, json=payload, stream=True)
     response_text = ""
@@ -83,7 +102,10 @@ def generate_response_llama(sparql_query: str, model: str, api_endpoint: str, pr
             pass
     print(response_text)
     return response_text
-    
+
+def generate_response_llama_parallel(args):
+    return generate_response_llama(*args)
+
 def use_llm(df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, prompt: str) -> pd.DataFrame:
     if os.path.exists(f"lc_quad_translated_{model}.csv"):
         # Load locally if data is already locally ready
@@ -91,8 +113,16 @@ def use_llm(df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, pr
         print("Loaded from local model responses")
     else:
         df = df.iloc[:load_limit]
-        df[f'{model}_response'] = df['wikidata_translated'].apply(lambda x: generate_response_llama(x, model, api_endpoint, prompt))
-    
+
+        # Prepare the arguments for parallel execution
+        args_list = [(sparql_query, model, api_endpoint, prompt) for sparql_query in df['wikidata_translated']]
+
+        # My llama implementation does not support parallel prompting, but in case your model does, the code should work.
+        with ThreadPoolExecutor(max_workers=50) as executor:
+            responses = list(executor.map(generate_response_llama_parallel, args_list))
+        
+        df[f'{model}_response'] = responses
+        
         df.to_csv(f"lc_quad_translated_{model}.csv", index=False)
         print(f"Saved {len(df.index)} rows with model responses")
     
@@ -386,21 +416,27 @@ def generate_compare_prompt(df: pd.DataFrame, model: str) -> None:
         print('XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>') 
     print('//Compare prompt template created//')
 
-def filter_df(df: pd.DataFrame, load_limit: int, bert_limit: float):
-    filtered_df = df.head(load_limit)
+def filter_df(model: str, load_limit: int, bert_limit: float):
+    print("Filtering final df.")
+    filtered_df = pd.read_csv(f'lc_quad_translated_{model}.csv').head(load_limit)
+    filtered_df['eval_bert'] = filtered_df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
     filtered_df = filtered_df[filtered_df['eval_bert'] >= bert_limit]
-    filtered_df = filtered_df[['question', 'paraphrased_question', 'sparql_wikidata', 'wikidata_translated', 'llama3_response', 'eval_manual', 'eval_bert']]
+    filtered_df = filtered_df[['question', 'paraphrased_question', 'sparql_wikidata', 'wikidata_translated', f'{model}_response', 'eval_bert']]
+    filtered_df.to_csv('final.csv', index=False)
     return filtered_df
 
-def final_plot(df: pd.DataFrame, size_manual_eval: int):
-    eval_manual_llm_true = df.iloc[:size_manual_eval][(df['eval_manual'] == 1)].shape[0]
-    eval_manual_llm_false = df.iloc[:size_manual_eval][(df['eval_manual'] == 0)].shape[0]
+def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: int):
+    print("Showing only the manually compared subset of the dataset.")
+    filtered_df = filtered_df.head(size_manual_eval)
+    joined_df = filtered_df.merge(df, how='left', on='question')
+    eval_manual_llm_true = joined_df.iloc[:size_manual_eval][(joined_df['eval_manual'] == 1)].shape[0]
+    eval_manual_llm_false = joined_df.iloc[:size_manual_eval][(joined_df['eval_manual'] == 0)].shape[0]
     plt.pie([eval_manual_llm_true, eval_manual_llm_false], labels=[f"True {eval_manual_llm_true}", f"False {eval_manual_llm_false}"], autopct='%1.1f%%')
     plt.title('Final Result Evaluation')
     plt.show()
 
 # Constants
-prompt_translate = generate_translate_prompt(1000)
+prompt_translate = generate_translate_prompt(200)
 prompt_is_equal = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a AI comparator of sentences comparing if their semantic is the same.<|eot_id|><|start_header_id|>user<|end_header_id|>
 Respond with a single word. Are the following sentences semantically the same?:
@@ -528,10 +564,10 @@ Respond with a single word. Are the following sentences semantically the same?\n
 
 model = "llama3"
 api_endpoint = "http://localhost:11434/api/generate"
-load_limit = 1000
+load_limit = 200
 size_manual_eval = 40
 
-bert_limit = 0.88
+bert_limit = 0.87
 
 # Load data
 df = load_lc(load_limit)
@@ -550,9 +586,9 @@ df = eval_mlp_bleu(df, model, load_limit)
 
 stats(df, size_manual_eval)
 
-filtered_df = filter_df(df, load_limit, bert_limit)
+filtered_df = filter_df(model, load_limit, bert_limit)
 print(filtered_df)
 
-final_plot(filtered_df, size_manual_eval)
+final_plot(filtered_df, df, size_manual_eval)
 
 # XXX The 71-100 are used to train compare LLM run
