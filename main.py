@@ -11,14 +11,16 @@ import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import sentence_bleu
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+
 def find_translatable_parts(sparql_query: str) -> List[str]:
-    entity_pattern = re.compile(r'wd:Q\d+')
-    property_pattern = re.compile(r'wdt:P\d+')
+    entity_pattern = re.compile(r"wd:Q\d+")
+    property_pattern = re.compile(r"wdt:P\d+")
 
     entity_matches = entity_pattern.findall(sparql_query)
     property_matches = property_pattern.findall(sparql_query)
 
     return entity_matches + property_matches
+
 
 def translate_part(part: str, client: Client) -> str:
     try:
@@ -29,15 +31,19 @@ def translate_part(part: str, client: Client) -> str:
         print(part)
         return part, None
 
-def map_wikidata_to_natural_language(sparql_query:str) -> str:
+
+def map_wikidata_to_natural_language(sparql_query: str) -> str:
     client = Client()
-    
+
     translatable_parts = find_translatable_parts(sparql_query)
     translated_parts = {}
-    
+
     with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_part = {executor.submit(translate_part, part, client): part for part in translatable_parts}
-        
+        future_to_part = {
+            executor.submit(translate_part, part, client): part
+            for part in translatable_parts
+        }
+
         for future in as_completed(future_to_part):
             part = future_to_part[future]
             translated_part = future.result()
@@ -49,9 +55,9 @@ def map_wikidata_to_natural_language(sparql_query:str) -> str:
 
     if None in translated_parts.values():
         return None
-    
+
     return sparql_query
-    
+
 
 def load_lc(load_limit: int) -> pd.DataFrame:
     if os.path.exists("lc_quad_translated.csv"):
@@ -66,33 +72,32 @@ def load_lc(load_limit: int) -> pd.DataFrame:
         train_df = lc_quad_dataset["train"].to_pandas()
         test_df = lc_quad_dataset["test"].to_pandas()
         combined_df = pd.concat([train_df, test_df], ignore_index=True)
-        
+
         combined_df = combined_df.iloc[:load_limit]
 
         # Apply KG to map from ambiguous descriptions to NL
         with ThreadPoolExecutor(max_workers=50) as executor:
-            combined_df["wikidata_translated"] = list(executor.map(map_wikidata_to_natural_language, combined_df["sparql_wikidata"]))
-        
+            combined_df["wikidata_translated"] = list(
+                executor.map(
+                    map_wikidata_to_natural_language, combined_df["sparql_wikidata"]
+                )
+            )
+
         # Delete failed rows
         combined_df = combined_df[combined_df["wikidata_translated"] != None]
-        
+
         # Save DF for future use to save resources
         combined_df.to_csv("lc_quad_translated.csv", index=False)
-        
+
         print(f"Loaded from net, load limit is {load_limit}")
     print(f"Loaded {len(combined_df.index)} rows")
     return combined_df
 
 
-
-
-
-
-def generate_response_llama(sparql_query: str, model: str, api_endpoint: str, prompt: str) -> str:
-    payload = {
-        "model": model,
-        "prompt": prompt + sparql_query + "assistant"
-    }
+def generate_response_llama(
+    sparql_query: str, model: str, api_endpoint: str, prompt: str
+) -> str:
+    payload = {"model": model, "prompt": prompt + sparql_query + "assistant"}
     response = requests.post(api_endpoint, json=payload, stream=True)
     response_text = ""
     for line in response.text.split("\n"):
@@ -103,10 +108,14 @@ def generate_response_llama(sparql_query: str, model: str, api_endpoint: str, pr
     print(response_text)
     return response_text
 
+
 def generate_response_llama_parallel(args):
     return generate_response_llama(*args)
 
-def use_llm(df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, prompt: str) -> pd.DataFrame:
+
+def use_llm(
+    df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, prompt: str
+) -> pd.DataFrame:
     if os.path.exists(f"lc_quad_translated_{model}.csv"):
         # Load locally if data is already locally ready
         df = pd.read_csv(f"lc_quad_translated_{model}.csv").iloc[:load_limit]
@@ -115,28 +124,30 @@ def use_llm(df: pd.DataFrame, model: str, api_endpoint: str, load_limit: int, pr
         df = df.iloc[:load_limit]
 
         # Prepare the arguments for parallel execution
-        args_list = [(sparql_query, model, api_endpoint, prompt) for sparql_query in df['wikidata_translated']]
+        args_list = [
+            (sparql_query, model, api_endpoint, prompt)
+            for sparql_query in df["wikidata_translated"]
+        ]
 
         # My llama implementation does not support parallel prompting, but in case your model does, the code should work.
         with ThreadPoolExecutor(max_workers=50) as executor:
             responses = list(executor.map(generate_response_llama_parallel, args_list))
-        
-        df[f'{model}_response'] = responses
-        
+
+        df[f"{model}_response"] = responses
+
         df.to_csv(f"lc_quad_translated_{model}.csv", index=False)
         print(f"Saved {len(df.index)} rows with model responses")
-    
+
     print(f"Loaded {len(df.index)} rows")
     return df
-
-
-
 
 
 def eval_manual(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd.DataFrame:
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
-        print(f"Evaluated file already exists. Do you want to overwrite/add manual eval? (y/n)")
+        print(
+            "Evaluated file already exists. Do you want to overwrite/add manual eval? (y/n)"
+        )
         answer = input()
         if answer == "y":
             df = eval_manual_logic(df, model, size_manual_eval)
@@ -144,22 +155,27 @@ def eval_manual(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd.DataF
             df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv")
     else:
         df = eval_manual_logic(df, model, size_manual_eval)
-    
+
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved manual eval")
     return df
 
-def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd.DataFrame:
+
+def eval_manual_logic(
+    df: pd.DataFrame, model: str, size_manual_eval: int
+) -> pd.DataFrame:
     print("Creating manual evaluation")
     print(min(size_manual_eval, len(df.index)))
-    
+
     print("Do you have a prompt in constants for manual eval? (y/n)")
     answer = input()
     if answer != "y":
         generate_compare_prompt(df, model)
-        print("Please manually create the prompt by changing the XXX values for the actual answer and run the program again")
+        print(
+            "Please manually create the prompt by changing the XXX values for the actual answer and run the program again"
+        )
         exit()
-    
+
     for i in range(min(size_manual_eval, len(df.index))):
         print(i)
         print(f"Dataset: {df.at[i, 'question']}, {df.at[i, 'paraphrased_question']}")
@@ -168,35 +184,65 @@ def eval_manual_logic(df: pd.DataFrame, model: str, size_manual_eval: int) -> pd
         response = input()
         print()
         if response == "y":
-            df.at[i, 'eval_manual'] = 1
+            df.at[i, "eval_manual"] = 1
         else:
-            df.at[i, 'eval_manual'] = 0
+            df.at[i, "eval_manual"] = 0
     print("Manual eval created")
     return df
 
 
-
-def eval_llm(df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: int, prompt: str) -> pd.DataFrame:
+def eval_llm(
+    df: pd.DataFrame, model: str, api_endpoint: str, size_manual_eval: int, prompt: str
+) -> pd.DataFrame:
     df = df.iloc[:size_manual_eval]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
-        print(f"Evaluated file already exists. Do you want to overwrite/add llm eval? (y/n)")
+        print(
+            "Evaluated file already exists. Do you want to overwrite/add llm eval? (y/n)"
+        )
         answer = input()
         if answer == "y":
-            df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x['paraphrased_question'], x[f'{model}_response'], model, api_endpoint, prompt), axis=1)
+            df["eval_llm"] = df.apply(
+                lambda x: eval_llm_logic(
+                    x["paraphrased_question"],
+                    x[f"{model}_response"],
+                    model,
+                    api_endpoint,
+                    prompt,
+                ),
+                axis=1,
+            )
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:size_manual_eval]
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[
+                :size_manual_eval
+            ]
     else:
-        df['eval_llm'] = df.apply(lambda x: eval_llm_logic(x["paraphrased_question"], x[f"{model}_response"], model, api_endpoint, prompt), axis=1)
-    
+        df["eval_llm"] = df.apply(
+            lambda x: eval_llm_logic(
+                x["paraphrased_question"],
+                x[f"{model}_response"],
+                model,
+                api_endpoint,
+                prompt,
+            ),
+            axis=1,
+        )
+
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved llm eval")
     return df
-    
-def eval_llm_logic(dataset: str, model_response: str, model: str, api_endpoint: str, prompt: str) -> int:
+
+
+def eval_llm_logic(
+    dataset: str, model_response: str, model: str, api_endpoint: str, prompt: str
+) -> int:
     payload = {
         "model": model,
-        "prompt": prompt + str(dataset) + "\n" + str(model_response) + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+        "prompt": prompt
+        + str(dataset)
+        + "\n"
+        + str(model_response)
+        + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>",
     }
     response = requests.post(api_endpoint, json=payload, stream=True)
     response_text = ""
@@ -217,30 +263,46 @@ def eval_llm_logic(dataset: str, model_response: str, model: str, api_endpoint: 
         return 0
 
 
-
 def eval_mlp_bert(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame:
     df = df.iloc[:load_limit]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
-        print(f"Evaluated file already exists. Do you want to overwrite/add bert eval? (y/n)")
+        print(
+            "Evaluated file already exists. Do you want to overwrite/add bert eval? (y/n)"
+        )
         answer = input()
         if answer == "y":
-            df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
+            df["eval_bert"] = df.apply(
+                lambda x: eval_bert_logic(
+                    x["paraphrased_question"], x[f"{model}_response"]
+                ),
+                axis=1,
+            )
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:load_limit]
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[
+                :load_limit
+            ]
     else:
-        df['eval_bert'] = df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
-    
+        df["eval_bert"] = df.apply(
+            lambda x: eval_bert_logic(
+                x["paraphrased_question"], x[f"{model}_response"]
+            ),
+            axis=1,
+        )
+
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved bert eval")
     return df
+
 
 def eval_bert_logic(dataset: str, model_response: str):
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     model = BertModel.from_pretrained("bert-base-uncased")
 
     inputs1 = tokenizer(dataset, return_tensors="pt", padding=True, truncation=True)
-    inputs2 = tokenizer(model_response, return_tensors="pt", padding=True, truncation=True)
+    inputs2 = tokenizer(
+        model_response, return_tensors="pt", padding=True, truncation=True
+    )
 
     outputs1 = model(**inputs1)
     outputs2 = model(**inputs2)
@@ -248,28 +310,44 @@ def eval_bert_logic(dataset: str, model_response: str):
     embeddings1 = outputs1.last_hidden_state.mean(dim=1).detach().numpy()
     embeddings2 = outputs2.last_hidden_state.mean(dim=1).detach().numpy()
 
-    similarity = np.dot(embeddings1, embeddings2.T) / (np.linalg.norm(embeddings1) * np.linalg.norm(embeddings2))
+    similarity = np.dot(embeddings1, embeddings2.T) / (
+        np.linalg.norm(embeddings1) * np.linalg.norm(embeddings2)
+    )
 
     return similarity[0][0]
-
 
 
 def eval_mlp_bleu(df: pd.DataFrame, model: str, load_limit: int) -> pd.DataFrame:
     df = df.iloc[:load_limit]
     if os.path.exists(f"lc_quad_translated_{model}_evaluated.csv"):
         # Load locally if data is already locally ready
-        print(f"Evaluated file already exists. Do you want to overwrite/add bleu eval? (y/n)")
+        print(
+            "Evaluated file already exists. Do you want to overwrite/add bleu eval? (y/n)"
+        )
         answer = input()
         if answer == "y":
-            df['eval_bleu'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x["question"], x[f"{model}_response"]), axis=1)
+            df["eval_bleu"] = df.apply(
+                lambda x: eval_bleu_logic(
+                    x["paraphrased_question"], x["question"], x[f"{model}_response"]
+                ),
+                axis=1,
+            )
         else:
-            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[:load_limit]
+            df = pd.read_csv(f"lc_quad_translated_{model}_evaluated.csv").iloc[
+                :load_limit
+            ]
     else:
-        df['eval_bleu'] = df.apply(lambda x: eval_bleu_logic(x["paraphrased_question"], x["question"], x[f"{model}_response"]), axis=1)
-    
+        df["eval_bleu"] = df.apply(
+            lambda x: eval_bleu_logic(
+                x["paraphrased_question"], x["question"], x[f"{model}_response"]
+            ),
+            axis=1,
+        )
+
     df.to_csv(f"lc_quad_translated_{model}_evaluated.csv", index=False)
     print("Saved bleu eval")
     return df
+
 
 def eval_bleu_logic(dataset1: str, dataset2: str, model_response: str):
     if type(dataset1) != str:
@@ -281,32 +359,54 @@ def eval_bleu_logic(dataset1: str, dataset2: str, model_response: str):
     dataset = [dataset1, dataset2]
     reference = [question.split(" ") for question in dataset]
     predictions = model_response.split(" ")
-    score = sentence_bleu(reference, predictions) # TODO weights could help to make this evaluation useful
+    score = sentence_bleu(
+        reference, predictions
+    )  # TODO weights could help to make this evaluation useful
     return score
 
 
-
 def accuracy(correct, total):
-    return correct/total
+    return correct / total
+
+
 def precision(true_positives, false_positives):
     return true_positives / (true_positives + false_positives)
+
+
 def recall(true_positives, false_negatives):
     return true_positives / (true_positives + false_negatives)
+
+
 def f1(precision, recall):
-    return 2*precision*recall / (precision + recall)
+    return 2 * precision * recall / (precision + recall)
+
 
 def stats(df, size_manual_eval):
-    eval_manual_llm_same = df.iloc[:size_manual_eval][(df['eval_manual'] == df['eval_llm'])].shape[0]
-    eval_manual_llm_true = df.iloc[:size_manual_eval][(df['eval_manual'] == 1)].shape[0]
-    eval_manual_llm_false = df.iloc[:size_manual_eval][(df['eval_manual'] == 0)].shape[0]
-    eval_manual_llm_true_positives = df.iloc[:size_manual_eval][(df['eval_manual'] == 1) & (df['eval_llm'] == 1)].shape[0]
-    eval_manual_llm_false_positives = df.iloc[:size_manual_eval][(df['eval_manual'] == 0) & (df['eval_llm'] == 1)].shape[0]
-    eval_manual_llm_false_negatives = df.iloc[:size_manual_eval][(df['eval_manual'] == 1) & (df['eval_llm'] == 0)].shape[0]
-    eval_manual_llm_true_negatives = df.iloc[:size_manual_eval][(df['eval_manual'] == 0) & (df['eval_llm'] == 0)].shape[0]
-    eval_llm_total_1 = df[df['eval_llm'] == 1].shape[0]
+    eval_manual_llm_same = df.iloc[:size_manual_eval][
+        (df["eval_manual"] == df["eval_llm"])
+    ].shape[0]
+    eval_manual_llm_true = df.iloc[:size_manual_eval][(df["eval_manual"] == 1)].shape[0]
+    eval_manual_llm_false = df.iloc[:size_manual_eval][(df["eval_manual"] == 0)].shape[
+        0
+    ]
+    eval_manual_llm_true_positives = df.iloc[:size_manual_eval][
+        (df["eval_manual"] == 1) & (df["eval_llm"] == 1)
+    ].shape[0]
+    eval_manual_llm_false_positives = df.iloc[:size_manual_eval][
+        (df["eval_manual"] == 0) & (df["eval_llm"] == 1)
+    ].shape[0]
+    eval_manual_llm_false_negatives = df.iloc[:size_manual_eval][
+        (df["eval_manual"] == 1) & (df["eval_llm"] == 0)
+    ].shape[0]
+    eval_manual_llm_true_negatives = df.iloc[:size_manual_eval][
+        (df["eval_manual"] == 0) & (df["eval_llm"] == 0)
+    ].shape[0]
+    eval_llm_total_1 = df[df["eval_llm"] == 1].shape[0]
 
     llm_accuracy = accuracy(eval_manual_llm_same, size_manual_eval)
-    llm_precision = precision(eval_manual_llm_true_positives, eval_manual_llm_false_positives)
+    llm_precision = precision(
+        eval_manual_llm_true_positives, eval_manual_llm_false_positives
+    )
     llm_recall = recall(eval_manual_llm_true_positives, eval_manual_llm_false_negatives)
     llm_f1 = f1(llm_precision, llm_recall)
 
@@ -316,23 +416,31 @@ def stats(df, size_manual_eval):
     print(f"Recall: {llm_recall}")
     print(f"F1 Score: {llm_f1}")
     print()
-    
-    print(f"Totally evaluated as correct by model: {eval_llm_total_1} out of {df.shape[0]}")
-    print(f"First LLM run made {eval_manual_llm_true} correct, {eval_manual_llm_false} mistakes")
-    print(f"Second LLM run made {eval_manual_llm_false_positives + eval_manual_llm_false_negatives} mistakes")
-    print(f"Final good results are {eval_manual_llm_true_positives} out of {size_manual_eval}")
-    
+
+    print(
+        f"Totally evaluated as correct by model: {eval_llm_total_1} out of {df.shape[0]}"
+    )
+    print(
+        f"First LLM run made {eval_manual_llm_true} correct, {eval_manual_llm_false} mistakes"
+    )
+    print(
+        f"Second LLM run made {eval_manual_llm_false_positives + eval_manual_llm_false_negatives} mistakes"
+    )
+    print(
+        f"Final good results are {eval_manual_llm_true_positives} out of {size_manual_eval}"
+    )
+
     print()
     print(f"tp: {eval_manual_llm_true_positives}")
     print(f"tn: {eval_manual_llm_true_negatives}")
     print(f"fp: {eval_manual_llm_false_positives}")
     print(f"fn: {eval_manual_llm_false_negatives}")
 
-    eval_bert_min = df['eval_bert'].min()
-    eval_bert_max = df['eval_bert'].max()
-    eval_bert_average = df['eval_bert'].mean()
-    eval_bert_median = df['eval_bert'].median()
-    eval_bert_mode = df['eval_bert'].mode()[0]
+    eval_bert_min = df["eval_bert"].min()
+    eval_bert_max = df["eval_bert"].max()
+    eval_bert_average = df["eval_bert"].mean()
+    eval_bert_median = df["eval_bert"].median()
+    eval_bert_mode = df["eval_bert"].mode()[0]
 
     print()
     print("Eval BERT Statistics")
@@ -343,18 +451,17 @@ def stats(df, size_manual_eval):
     print(f"Mode: {eval_bert_mode}")
 
     # Plot BERT values
-    plt.hist(df['eval_bert'], bins=10)
-    plt.xlabel('BERT Values')
-    plt.ylabel('Frequency')
-    plt.title('Distribution of BERT Values')
+    plt.hist(df["eval_bert"], bins=10)
+    plt.xlabel("BERT Values")
+    plt.ylabel("Frequency")
+    plt.title("Distribution of BERT Values")
     plt.show()
 
-    eval_bleu_min = df['eval_bleu'].min()
-    eval_bleu_max = df['eval_bleu'].max()
-    eval_bleu_average = df['eval_bleu'].mean()
-    eval_bleu_median = df['eval_bleu'].median()
-    eval_bleu_mode = df['eval_bleu'].mode()[0]
-
+    eval_bleu_min = df["eval_bleu"].min()
+    eval_bleu_max = df["eval_bleu"].max()
+    eval_bleu_average = df["eval_bleu"].mean()
+    eval_bleu_median = df["eval_bleu"].median()
+    eval_bleu_mode = df["eval_bleu"].mode()[0]
 
     print()
     print("Eval BLEU Statistics")
@@ -365,14 +472,15 @@ def stats(df, size_manual_eval):
     print(f"Mode: {eval_bleu_mode}")
 
     # Plot BLEU values
-    plt.hist(df['eval_bleu'], bins=10)
-    plt.xlabel('BLEU Values')
-    plt.ylabel('Frequency')
-    plt.title('Distribution of BLEU Values')
+    plt.hist(df["eval_bleu"], bins=10)
+    plt.xlabel("BLEU Values")
+    plt.ylabel("Frequency")
+    plt.title("Distribution of BLEU Values")
     plt.show()
 
+
 def generate_translate_prompt(size: int):
-    if os.path.exists(f"translate_prompt.txt"):
+    if os.path.exists("translate_prompt.txt"):
         print("Loaded prompt from local")
         with open("translate_prompt.txt", "r", encoding="utf-8") as file:
             content = file.read()
@@ -387,53 +495,89 @@ def generate_translate_prompt(size: int):
     test_df = lc_quad_dataset["test"].to_pandas()
     combined_df = pd.concat([train_df, test_df], ignore_index=True)
     length = len(combined_df.index)
-    combined_df = combined_df.iloc[length - size:] # get last "size" amount of elements
-    combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(map_wikidata_to_natural_language)
-    
+    combined_df = combined_df.iloc[
+        length - size :
+    ]  # get last "size" amount of elements
+    combined_df["wikidata_translated"] = combined_df["sparql_wikidata"].map(
+        map_wikidata_to_natural_language
+    )
+
     task = "Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: "
     prompt = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 You are a AI translator for converting sparql queries into normal natural language questions<|eot_id|><|start_header_id|>user<|end_header_id|>\n"""
 
-    print('/Creating translate prompt/')
+    print("/Creating translate prompt/")
     for i in range(length - size, length):
         prompt += task
-        prompt += combined_df.at[i, 'wikidata_translated']
+        prompt += combined_df.at[i, "wikidata_translated"]
         prompt += "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n"
-        prompt += combined_df.at[i, 'paraphrased_question']
+        prompt += combined_df.at[i, "paraphrased_question"]
         prompt += "<|eot_id|><|start_header_id|>user<|end_header_id|>\n"
     prompt += task
     with open("translate_prompt.txt", "w", encoding="utf-8") as file:
         file.write(prompt)
-    print('//Translate prompt created//')
+    print("//Translate prompt created//")
     return prompt
 
+
 def generate_compare_prompt(df: pd.DataFrame, model: str) -> None:
-    print('/Creating compare prompt template to edit/')
+    print("/Creating compare prompt template to edit/")
     for i in range(len(df.index) - 30, len(df.index)):
-        print("Respond with a single word. Are the following sentences semantically the same?:")
-        print(df.at[len(df.index) - i, 'paraphrased_question'])
-        print(df.at[len(df.index) - i, f'{model}_response'] + '<|eot_id|><|start_header_id|>assistant<|end_header_id|>')  
-        print('XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>') 
-    print('//Compare prompt template created//')
+        print(
+            "Respond with a single word. Are the following sentences semantically the same?:"
+        )
+        print(df.at[len(df.index) - i, "paraphrased_question"])
+        print(
+            df.at[len(df.index) - i, f"{model}_response"]
+            + "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+        )
+        print("XXXXX.<|eot_id|><|start_header_id|>user<|end_header_id|>")
+    print("//Compare prompt template created//")
+
 
 def filter_df(model: str, load_limit: int, bert_limit: float):
     print("Filtering final df.")
-    filtered_df = pd.read_csv(f'lc_quad_translated_{model}.csv').head(load_limit)
-    filtered_df['eval_bert'] = filtered_df.apply(lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]), axis=1)
-    filtered_df = filtered_df[filtered_df['eval_bert'] >= bert_limit]
-    filtered_df = filtered_df[['question', 'paraphrased_question', 'sparql_wikidata', 'wikidata_translated', f'{model}_response', 'eval_bert']]
-    filtered_df.to_csv('final.csv', index=False)
+    filtered_df = pd.read_csv(f"lc_quad_translated_{model}.csv").head(load_limit)
+    filtered_df["eval_bert"] = filtered_df.apply(
+        lambda x: eval_bert_logic(x["paraphrased_question"], x[f"{model}_response"]),
+        axis=1,
+    )
+    filtered_df = filtered_df[filtered_df["eval_bert"] >= bert_limit]
+    filtered_df = filtered_df[
+        [
+            "question",
+            "paraphrased_question",
+            "sparql_wikidata",
+            "wikidata_translated",
+            f"{model}_response",
+            "eval_bert",
+        ]
+    ]
+    filtered_df.to_csv("final.csv", index=False)
     return filtered_df
+
 
 def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: int):
     print("Showing only the manually compared subset of the dataset.")
     filtered_df = filtered_df.head(size_manual_eval)
-    joined_df = filtered_df.merge(df, how='left', on='question')
-    eval_manual_llm_true = joined_df.iloc[:size_manual_eval][(joined_df['eval_manual'] == 1)].shape[0]
-    eval_manual_llm_false = joined_df.iloc[:size_manual_eval][(joined_df['eval_manual'] == 0)].shape[0]
-    plt.pie([eval_manual_llm_true, eval_manual_llm_false], labels=[f"True {eval_manual_llm_true}", f"False {eval_manual_llm_false}"], autopct='%1.1f%%')
-    plt.title('Final Result Evaluation')
+    joined_df = filtered_df.merge(df, how="left", on="question")
+    
+    eval_manual_llm_true = joined_df.iloc[:size_manual_eval][
+        (joined_df["eval_manual"] == 1)
+    ].shape[0]
+    
+    eval_manual_llm_false = joined_df.iloc[:size_manual_eval][
+        (joined_df["eval_manual"] == 0)
+    ].shape[0]
+    
+    plt.pie(
+        [eval_manual_llm_true, eval_manual_llm_false],
+        labels=[f"True {eval_manual_llm_true}", f"False {eval_manual_llm_false}"],
+        autopct="%1.1f%%",
+    )
+    plt.title("Final Result Evaluation")
     plt.show()
+
 
 # Constants
 prompt_translate = generate_translate_prompt(200)
@@ -574,14 +718,14 @@ df = load_lc(load_limit)
 # Run LLM
 df = use_llm(df, model, api_endpoint, load_limit, prompt_translate)
 # Evaluate
-    # 1 - manual 0/1
+# 1 - manual 0/1
 df = eval_manual(df, model, size_manual_eval)
-    # 2 - LLM
+# 2 - LLM
 df = eval_llm(df, model, api_endpoint, size_manual_eval, prompt_is_equal)
-    # 3 - MLP
-        # BERT
+# 3 - MLP
+# BERT
 df = eval_mlp_bert(df, model, load_limit)
-        # BLEU
+# BLEU
 df = eval_mlp_bleu(df, model, load_limit)
 
 stats(df, size_manual_eval)
