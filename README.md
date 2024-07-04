@@ -97,6 +97,11 @@ The final number of examples is approximately a third of the number of translate
 The threshold could be lowered to increase this number of outputted translations, which would also introduce occasional faulty examples.\
 Unless another model or bigger prompt is used to move the threshold down while maintaining accuracy.
 
+![image](https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/e22b440b-c0df-48fb-91cf-7b91fa1cb7f1)
+![image](https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/2a4f0911-6841-4e70-a7cd-53093d44ec2b)
+
+
+
 ## How to use
 If you use llama3 as we did, you must run it locally (https://ollama.com/library/llama3) or provide a different API endpoint.\
 After that, run the script and follow its instructions to create the final filtered dataset.\
