@@ -17,13 +17,10 @@ There are 24k examples to be used to create and test our idea.
 Progress is saved after the mapping.
 
 ## Translation using LLM
-The prompt is automatically generated from the last <200> rows of the dataset to showcase the model how to respond properly. This can be increased further to make the model potentially perform correctly for the bigger portion of the dataset. However, in between our computing resource constraints and the effectiveness of the prompt, we have landed at the sweet spot of 200 examples.
+The prompt is automatically generated from the last <200> rows of the dataset to showcase the model how to respond properly. Given our computing constraints and the formulation of the prompt we found these 200 rows to be sufficient, however an increase could pottentially improve the model's performance for a larger portion of the dataset.
 
 The model used: llama3 8b
 https://ollama.com/library/llama3
-
-We selected a free model we could run locally, llama3 8b.
-The prompt is called on the dataset; we have set the limit to 200 in the code due to computing restraints. 
 
 Room for improvement:
 - Use a more powerful model like llama3 70b
@@ -34,24 +31,25 @@ Room for improvement:
 Progress is saved after the translation.
 
 ## Evaluation
-We used 4 different evaluating methods and selected the best one to filter out to only correct results that can be used to train LLMs.
+To find the best filtering metric for incorrect translations of the data, 4 different evaluating methods were tested, we selected the best one with a threshold that automatically filters out all incorrect translations.\
+The conclusion on how we decided on the final metric has been based on a smaller subset of manual evaluations.
 
 Progress is saved after each evaluation, and the user is prompted if he wants to rerun it.
 
 ### Manual Evaluation
-A manual evaluation is created to judge other evaluations to be able to tell 100% how our metrics perform.
-We did the first 40 examples.
-The user is asked if two sentences are semantically the same and thus can be used to train LLMs.
+A manual evaluation was conducted on the same data as the automated evaluation methods.\
+40 pairs of sentences were checked for symantic equivalence.\
+These true/false results could then be used as the ground truth to evaluate the automated methods.\
 The verdict is that about ~75% are correct from all the translations. Now, we need a way to filter the false ones automatically.
 
 <img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/69ef1ad9-fb95-48f3-b093-7e44b71411ea" alt="image" width="300"/>
 
 ### LLM comparison - Failed Evaluation
-The same logic as in manual evaluation is used, but now it's automated using LLM to scale.
-The prompt template is generated automatically and then requires the user to compare the two to train llama to determine if two sentences have the same semantic meaning.
+Automated asking LLM to compare the semantic difference for a true/false matrix.\
+The prompt template is generated automatically and then requires the user to compare the two questions to train llama to determine if two sentences have the same semantic meaning.
 After that, the dataset and translations can be compared using this approach.
 
-Unfortunately, the LLM comparison does not succeed in correctly comparing the sentences. Even though it gains a 0.6 F1 score, there are too many false negatives; thus, we observed it actually flagging only 33% correctly. This is a far cry from the 75% we determined by manual.
+Unfortunately, the LLM comparison does not succeed in correctly comparing the sentences. Even though it gains a 0.6 F1 score, there are too many false negatives; thus, we observed it actually flagging only 33% of pairs correctly. This is a far cry from the 75% we determined by manual.
 
 <img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/65fdd856-e0e2-4416-8544-7d888d119f00" alt="image" width="362"/>
 <img src="https://github.com/ValachPatrik/dataengineering/assets/82080194/86e6510d-5c5c-418e-aa9a-76e87b29c541" alt="image" width="300"/>
@@ -61,11 +59,12 @@ Room for improvement:
 - Automatically generate the prompt by asking the model to give a set of semantically same sentences, potentially improving the comparison quality.
 
 ### BLEU - Failed Evaluation
-Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu 
+Using BLEU from https://huggingface.co/spaces/evaluate-metric/bleu \
+It gives a value between [0,1] to measure how many transformations are needed to create the same sentence.
 
 Min: 0.0 \
 Max: 0.8153551038173115 \
-Average: 0.08747699091088278 I am running a few minutes late; my previous meeting is running over.
+Average: 0.08747699091088278 \
 
 <img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/3ef0c3db-4d31-447f-b354-42b77270da23" alt="image" width="300"/>
 
@@ -76,8 +75,9 @@ Room for improvement:
 
 ### BERT - Winner
 Using BLEU from https://huggingface.co/docs/transformers/en/model_doc/bert \
-Converts text to vector \
-Semantically indifferent text will give vectors that are close to each other 
+Converts text to a vector embedding. \
+Semantically indifferent text will give embeddings that are close to each other. \
+It gives a value between [0,1] to measure this closeness.
 
 Min: 0.41958645 \
 Max: 0.9939645 \
@@ -87,7 +87,7 @@ Mode: 0.41958645 \
 <img src="https://github.com/ValachPatrik/Structured-Query-Verbalization-with-Large-Language-Models/assets/82080194/81ca9710-339f-4e06-976d-14eb5ac34e05" alt="image" width="300"/>
 
 ### Display Statistics
-Code returns statistics of each evaluation and creates graphs for BERT, BLEU and the final subset of filtered manual evaluation.
+Code returns statistics for each evaluation and creates graphs for BERT, BLEU, and the final subset of filtered manual evaluation.
 
 ## Final Filtering
 The final filter of translated prompts is done with the BERT metric. \
