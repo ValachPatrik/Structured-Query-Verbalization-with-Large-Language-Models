@@ -584,12 +584,13 @@ def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: in
     counts, bins, patches = plt.hist(df["eval_bert"], bins=200, edgecolor='black')
     for i, patch in enumerate(patches):
         if bins[i] < threshold:
-            patch.set_facecolor('blue')
+            patch.set_facecolor('cornflowerblue')
         else:
-            patch.set_facecolor('green')
+            patch.set_facecolor('lightgreen')
+        patch.set_linewidth(0.5)  # Set the outline width of the bars
 
     # Add a red vertical line at the threshold
-    plt.axvline(threshold, color='red', linewidth=2)
+    plt.axvline(threshold, color='firebrick', linewidth=4)
     plt.xticks(np.arange(min(df["eval_bert"]), max(df["eval_bert"]), 0.05))
 
     # Set labels and title
@@ -606,12 +607,11 @@ def final_plot(filtered_df: pd.DataFrame, df: pd.DataFrame, size_manual_eval: in
     # Data for the pie chart
     labels = ['True Negatives', 'True Positives', 'False Negatives']
     sizes = [true_negatives, true_positives, false_negatives]
-    colors = ['red', 'green', 'blue']
+    colors = ['firebrick', 'lightgreen', 'cornflowerblue']
 
     # Create the pie chart
     plt.figure(figsize=(8, 8))
-    plt.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-    plt.title('Distribution of Data Points')
+    plt.pie(sizes, explode=[0, 0.1, 0], labels=labels, colors=colors, autopct='%1.1f%%', startangle=270, textprops={'fontsize': 30, 'fontweight': 'bold'})
     plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
     # Show the plot
