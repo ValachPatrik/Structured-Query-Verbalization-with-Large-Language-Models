@@ -38,7 +38,7 @@ Progress is saved after each evaluation, and the user is prompted if he wants to
 
 ### Manual Evaluation
 A manual evaluation was conducted on the same data as the automated evaluation methods.\
-40 pairs of sentences were checked for symantic equivalence.\
+40 pairs of sentences were checked for semantic equivalence.\
 These true/false results could then be used as the ground truth to evaluate the automated methods.\
 The verdict is that about ~75% are correct from all the translations. Now, we need a way to filter the false ones automatically.
 
