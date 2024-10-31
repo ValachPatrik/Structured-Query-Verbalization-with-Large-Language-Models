@@ -10,6 +10,7 @@ from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import pdist, squareform
 
 import warnings
+
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Initialize BERT model and tokenizer for embeddings
@@ -35,8 +36,8 @@ def llama3_generate_translation(api_endpoint, Q, model):
             response_text += line.split('response":"')[1].split('","done":')[0]
         except:
             pass
-    #print("first response")
-    #print(response_text)
+    # print("first response")
+    # print(response_text)
     prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
             You are a AI translator for converting sparql queries into normal natural language questions<|eot_id|><|start_header_id|>user<|end_header_id|>
             Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}' <|eot_id|><|start_header_id|>assistant<|end_header_id|>
@@ -55,7 +56,7 @@ def llama3_generate_translation(api_endpoint, Q, model):
             response_text += line.split('response":"')[1].split('","done":')[0]
         except:
             pass
-    #print("second response")
+    # print("second response")
     print(response_text)
     # print(f"llama response {response_text}")
     return response_text
@@ -139,9 +140,10 @@ def calculate_intra_cluster_distance(embeddings):
         embeddings_array = embeddings_array.reshape(embeddings_array.shape[0], -1)
     elif embeddings_array.ndim != 2:
         raise ValueError("Embeddings must be a 2D array or a list of 2D arrays")
-    
+
     distances = pdist(embeddings_array)
     return np.mean(distances)
+
 
 def evaluate_translation_quality(embeddings):
     """Evaluate translation quality using silhouette score."""
@@ -150,9 +152,22 @@ def evaluate_translation_quality(embeddings):
         embeddings_array = embeddings_array.reshape(embeddings_array.shape[0], -1)
     elif embeddings_array.ndim != 2:
         raise ValueError("Embeddings must be a 2D array or a list of 2D arrays")
-    
+
     similarities = cosine_similarity(embeddings_array)
     return np.mean(similarities[np.triu_indices_from(similarities, k=1)])
+
+
+def print_embedding_distances(query_embedding, nl_embeddings):
+    """Print cosine distances between query embedding and natural language embeddings."""
+    print("\nEmbedding Distances (Cosine):")
+    for i, nl_embedding in enumerate(nl_embeddings):
+        distance = (
+            1
+            - cosine_similarity(
+                query_embedding.reshape(1, -1), nl_embedding.reshape(1, -1)
+            )[0][0]
+        )
+        print(f"Translation {i+1}: {distance:.4f}")
 
 
 def translate_and_assess(
@@ -165,6 +180,9 @@ def translate_and_assess(
     Q = map_wikidata_to_natural_language(Q)
     print(Q)
 
+    # Get query embedding
+    query_embedding = bert_embedding(Q)
+
     # Generate k proposals and compute BERT embeddings
     for i in range(k):
         NL = translate_query_to_nl(model_type, Q, api_endpoint, openai_api_key)
@@ -173,6 +191,8 @@ def translate_and_assess(
         translations.append(NL)
 
     print(f"translations {translations}")
+
+    
 
     # Calculate intra-cluster distance
     intra_cluster_distance = calculate_intra_cluster_distance(NL_embeddings)
@@ -189,6 +209,9 @@ def translate_and_assess(
     best_translation = translations[
         np.argmax([evaluate_translation_quality([e]) for e in NL_embeddings])
     ]
+    
+    # Print distances between query and translations
+    print_embedding_distances(query_embedding, bert_embedding(best_translation))
 
     return best_translation, accept, quality_score
 
@@ -246,7 +269,7 @@ def gradient_descent_threshold_optimization(
 # Example usage
 if __name__ == "__main__":
     # Initialize SPARQL query Q\
-    load_limit = 50
+    load_limit = 20
 
     lc_quad_dataset = load_dataset("lc_quad", trust_remote_code=True)
 
@@ -260,8 +283,8 @@ if __name__ == "__main__":
     Q = " select distinct ?obj where { wd:Q188920 wdt:P2813 ?obj . ?obj wdt:P31 wd:Q1002697 } "
 
     # Thresholds for acceptance and rejection
-    T_A = 0.5  # Placeholder threshold for acceptance
-    T_R = 0.8  # Placeholder threshold for rejection
+    T_A = 0.6  # Placeholder threshold for acceptance
+    T_R = 0.92  # Placeholder threshold for rejection
 
     # LLaMA3 usage
     llama3_api_endpoint = "http://localhost:11434/api/generate"
