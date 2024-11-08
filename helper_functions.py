@@ -48,7 +48,7 @@ def map_wikidata_to_natural_language(sparql_query: str) -> str:
             part = future_to_part[future]
             translated_part = future.result()
             if translated_part[1] is not None:
-                translated_parts[translated_part[0]] = translated_part[1]
+                translated_parts[translated_part[0]] = f"[{translated_part[1]}]"
 
     for part, translation in translated_parts.items():
         sparql_query = sparql_query.replace(part, translation)
