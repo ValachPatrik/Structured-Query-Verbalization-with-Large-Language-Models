@@ -11,11 +11,18 @@ from scipy.spatial.distance import pdist, squareform
 
 import warnings
 
+import pandas as pd
+from sentence_transformers import SentenceTransformer
+
+
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Initialize BERT model and tokenizer for embeddings
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 bert_model = BertModel.from_pretrained("bert-base-uncased")
+
+q_embedding_model = SentenceTransformer('./all-MiniLM-L6-v2-uninstantiated-wikidata-question')
+
 
 
 # Function to call LLaMA3 API
@@ -171,22 +178,31 @@ def print_embedding_distances(query_embedding, nl_embeddings):
 
 
 def translate_and_assess(
-    model_type, Q, T_A, T_R, C, api_endpoint=None, openai_api_key=None, k=3
+    model_type, Q, T_A, T_R, C, api_endpoint=None, openai_api_key=None, k=1, NL_gt=None, Q_raw=None
 ):
     NL_embeddings = []
     translations = []
+    NL_embeddings_q_model = []
 
     # Translate Query through KG
-    Q = map_wikidata_to_natural_language(Q)
+    #Q = map_wikidata_to_natural_language(Q)
     print(Q)
 
     # Get query embedding
-    query_embedding = bert_embedding(Q)
+    #query_embedding = bert_embedding(Q)
+    if Q_EMBEDDING_MODE == 'instantiated':
+        query_embedding = q_embedding_model.encode(Q, convert_to_tensor=False)
+    else:
+        query_embedding = q_embedding_model.encode(Q_raw, convert_to_tensor=False)
+
+    nl_gt_embedding = bert_embedding(NL_gt)
 
     # Generate k proposals and compute BERT embeddings
     for i in range(k):
         NL = translate_query_to_nl(model_type, Q, api_endpoint, openai_api_key)
         e_i = bert_embedding(NL)
+        e_nl_i = q_embedding_model.encode(NL, convert_to_tensor=False)
+        NL_embeddings_q_model.append(e_nl_i)
         NL_embeddings.append(e_i)
         translations.append(NL)
 
@@ -195,25 +211,35 @@ def translate_and_assess(
     
 
     # Calculate intra-cluster distance
-    intra_cluster_distance = calculate_intra_cluster_distance(NL_embeddings)
-    print(f"Intra-cluster distance: {intra_cluster_distance}")
+    if k > 1:
+        intra_cluster_distance = calculate_intra_cluster_distance(NL_embeddings)
+        print(f"Intra-cluster distance: {intra_cluster_distance}")
 
-    # Evaluate translation quality
-    quality_score = evaluate_translation_quality(NL_embeddings)
-    print(f"Translation quality score: {quality_score}")
+        # Evaluate translation quality
+        quality_score = evaluate_translation_quality(NL_embeddings)
+        print(f"Translation quality score: {quality_score}")
 
-    # Determine acceptance based on thresholds
-    accept = T_A <= quality_score <= T_R
+        # Determine acceptance based on thresholds
+        accept = T_A <= quality_score <= T_R
 
-    # Choose the best translation (you can modify this logic if needed)
-    best_translation = translations[
-        np.argmax([evaluate_translation_quality([e]) for e in NL_embeddings])
-    ]
-    
-    # Print distances between query and translations
-    print_embedding_distances(query_embedding, bert_embedding(best_translation))
+        # Choose the best translation (you can modify this logic if needed)
+        best_translation_index =  np.argmax([cosine_similarity(query_embedding.reshape(1, -1), e.reshape(1, -1))[0][0] for e in NL_embeddings])
+        best_translation_embedding = NL_embeddings[best_translation_index]
+        best_translation = translations[best_translation_index]
 
-    return best_translation, accept, quality_score
+    else:
+        intra_cluster_distance = None
+        quality_score = None
+        accept = None
+        best_translation = translations[0]
+        best_translation_embedding = NL_embeddings[0]
+        best_translation_embedding_q_model = NL_embeddings_q_model[0]
+
+    bert_q_nl_score = cosine_similarity(query_embedding.reshape(1, -1), best_translation_embedding_q_model.reshape(1, -1))[0][0]
+    bert_nl_nl_gt_score = cosine_similarity(best_translation_embedding.reshape(1, -1), nl_gt_embedding.reshape(1, -1))[0][0]
+
+
+    return best_translation, accept, quality_score, intra_cluster_distance, bert_q_nl_score, bert_nl_nl_gt_score
 
 
 def gradient_descent_threshold_optimization(
@@ -268,23 +294,15 @@ def gradient_descent_threshold_optimization(
 
 # Example usage
 if __name__ == "__main__":
+
+    ### Parameters ###
     # Initialize SPARQL query Q\
-    load_limit = 20
+    load_limit = 300
 
-    lc_quad_dataset = load_dataset("lc_quad", trust_remote_code=True)
+    DATASET_NAME = "lc_quad_preprocessed.csv"
 
-    # combine both datasets test and train, we dont need this kind of differentiation
-    train_df = lc_quad_dataset["train"].to_pandas()
-    test_df = lc_quad_dataset["test"].to_pandas()
-    combined_df = pd.concat([train_df, test_df], ignore_index=True)
-
-    combined_df = combined_df.iloc[:load_limit]
-
-    Q = " select distinct ?obj where { wd:Q188920 wdt:P2813 ?obj . ?obj wdt:P31 wd:Q1002697 } "
-
-    # Thresholds for acceptance and rejection
-    T_A = 0.6  # Placeholder threshold for acceptance
-    T_R = 0.92  # Placeholder threshold for rejection
+    # whether the q-embedding model works with queries that have wikidata codes replaced (instantiated) by label or not
+    Q_EMBEDDING_MODE = 'uninstantiated'
 
     # LLaMA3 usage
     llama3_api_endpoint = "http://localhost:11434/api/generate"
@@ -297,6 +315,39 @@ if __name__ == "__main__":
 
     # Choose model type: "llama3" or "gpt"
     model_type = "llama3"  # or "gpt"
+
+    # How many answers to sample per query
+    k = 1
+    ###
+
+    # Check if the combined dataset is saved already
+    if os.path.exists(DATASET_NAME):
+        # Load from the saved CSV file
+        combined_df = pd.read_csv(DATASET_NAME)
+        print("Loaded combined dataset from saved file.")
+    else:
+        # Load the dataset from the source
+        lc_quad_dataset = load_dataset("lc_quad", trust_remote_code=True)
+
+        # Combine both datasets: train and test
+        train_df = lc_quad_dataset["train"].to_pandas()
+        test_df = lc_quad_dataset["test"].to_pandas()
+        combined_df = pd.concat([train_df, test_df], ignore_index=True)
+
+        # Save the combined dataframe to a CSV file for future use
+        combined_df.to_csv(DATASET_NAME, index=False)
+        print("Combined dataset saved to file.")
+
+
+    combined_df = combined_df.iloc[:load_limit]
+
+    Q = " select distinct ?obj where { wd:Q188920 wdt:P2813 ?obj . ?obj wdt:P31 wd:Q1002697 } "
+
+    # Thresholds for acceptance and rejection
+    T_A = 0.6  # Placeholder threshold for acceptance
+    T_R = 0.92  # Placeholder threshold for rejection
+
+
 
     # Optimize thresholds using gradient descent
     import os
@@ -317,7 +368,7 @@ if __name__ == "__main__":
             initial_T_R=0.9,
             learning_rate=0.01,
             num_iterations=50,
-            k=3,
+            k=k,
         )
         with open(best_scores_file, "w") as file:
             file.write(f"{best_T_A},{best_T_R}")
@@ -325,11 +376,15 @@ if __name__ == "__main__":
     print(f"Optimized Acceptance Threshold (T_A): {best_T_A}")
     print(f"Optimized Rejection Threshold (T_R): {best_T_R}")
 
+
+    # Dataframe to store the results
+    results_df = pd.DataFrame(columns=["sparql_wikidata", "paraphrased_question", "question", "best_translation", "bert_q_NL", "bert_NL_NL_gt", "intra_cluster_distance"])
+
     # Use optimized thresholds for translation and assessment
     for index, row in combined_df.iterrows():
-        Q = row["sparql_wikidata"]
+        Q = row["sparql_wikidata_translated"]
         print("-" * 50)
-        translation, accept, quality_score = translate_and_assess(
+        translation, accept, quality_score, intra_cluster_distance, bert_q_nl_score, bert_nl_nl_gt_score = translate_and_assess(
             model_type,
             Q,
             best_T_A,
@@ -337,7 +392,9 @@ if __name__ == "__main__":
             C,
             api_endpoint=llama3_api_endpoint,
             openai_api_key=openai_api_key,
-            k=3,
+            k=k,
+            NL_gt=row["paraphrased_question"],
+            Q_raw=row["sparql_wikidata"]
         )
 
         print(f"Query {index + 1}:")
@@ -348,3 +405,24 @@ if __name__ == "__main__":
         print(f"Supposed question paraphrased: {row['paraphrased_question']}")
         print(f"Supposed question: {row['question']}")
         print("-" * 50)
+
+
+        # Store the new row in a dictionary
+        new_row = {
+            "sparql_wikidata": Q,
+            "paraphrased_question": row["paraphrased_question"],
+            "question": row["question"],
+            "best_translation": translation,
+            "bert_q_NL": bert_q_nl_score,
+            "bert_NL_NL_gt": bert_nl_nl_gt_score,
+            "intra_cluster_distance": intra_cluster_distance
+        }
+
+        # Convert to DataFrame and concatenate
+        results_df = pd.concat([results_df, pd.DataFrame([new_row])], ignore_index=True)
+
+
+
+        # Saving results_df to disk please
+        results_df.to_csv('translation_results.csv')
+

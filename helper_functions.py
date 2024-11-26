@@ -15,11 +15,21 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 def find_translatable_parts(sparql_query: str) -> List[str]:
     entity_pattern = re.compile(r"wd:Q\d+")
     property_pattern = re.compile(r"wdt:P\d+")
+    property_pattern2 = re.compile(r"p:P\d+")
+    property_pattern3 = re.compile(r"ps:P\d+")
+    property_pattern4 = re.compile(r"pq:P\d+")
+
+    #property_pattern = re.compile(r"(wdt|p|ps|pq):P\d+")
 
     entity_matches = entity_pattern.findall(sparql_query)
     property_matches = property_pattern.findall(sparql_query)
+    property_matches2 = property_pattern2.findall(sparql_query)
+    property_matches3 = property_pattern3.findall(sparql_query)
+    property_matches4 = property_pattern4.findall(sparql_query)
 
-    return entity_matches + property_matches
+
+
+    return entity_matches + property_matches + property_matches2 + property_matches3 + property_matches4
 
 
 def translate_part(part: str, client: Client) -> str:
@@ -49,6 +59,8 @@ def map_wikidata_to_natural_language(sparql_query: str) -> str:
             translated_part = future.result()
             if translated_part[1] is not None:
                 translated_parts[translated_part[0]] = f"[{translated_part[1]}]"
+            else:
+                print('None part!')
 
     for part, translation in translated_parts.items():
         sparql_query = sparql_query.replace(part, translation)
