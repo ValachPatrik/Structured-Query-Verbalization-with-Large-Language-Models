@@ -1,103 +1,165 @@
-from sentence_transformers import InputExample, losses, SentenceTransformer, evaluation
-from torch.utils.data import DataLoader
-import pandas as pd
-
 import os
+import pandas as pd
+from torch.utils.data import DataLoader
+from sentence_transformers import (
+    InputExample,
+    losses,
+    SentenceTransformer,
+    evaluation
+)
 
-#Settings:
+def load_dataset(filepath, limit=None):
+    """
+    Load and optionally limit the dataset from a CSV file.
 
-DO_TRAIN = True
+    Args:
+        filepath (str): Path to the CSV file.
+        limit (int, optional): Maximum number of rows to load. Defaults to None.
 
-# Set the column names for sparql_wikidata and paraphrased_question
-query_row_name = 'sparql_wikidata'
-question_row_name = 'question'
+    Returns:
+        pd.DataFrame: Loaded DataFrame.
+    """
+    df = pd.read_csv(filepath)
+    if limit:
+        df = df.iloc[:limit]
+    print(f"Loaded {len(df)} rows from {filepath}")
+    return df
 
-os.environ["WANDB_MODE"] = "offline"
+def split_dataset(df, train_size, test_size):
+    """
+    Split the dataset into training and testing sets.
 
+    Args:
+        df (pd.DataFrame): The complete dataset.
+        train_size (int): Number of training samples.
+        test_size (int): Number of testing samples.
 
+    Returns:
+        tuple: Training and testing DataFrames.
+    """
+    train_df = df[:train_size].reset_index(drop=True)
+    test_df = df[train_size:train_size + test_size].reset_index(drop=True)
+    return train_df, test_df
 
-# Load the dataset
-df = pd.read_csv('lc_quad_preprocessed.csv')
+def create_input_examples(df, query_col, question_col):
+    """
+    Create positive and negative InputExamples for training/testing.
 
-print(len(df))
+    Args:
+        df (pd.DataFrame): DataFrame containing the data.
+        query_col (str): Column name for queries.
+        question_col (str): Column name for questions.
 
-df = df.iloc[:70000]
+    Returns:
+        list: List of InputExample instances.
+    """
+    examples = []
+    for idx, row in df.iterrows():
+        # Positive pair
+        examples.append(InputExample(
+            texts=[str(row[query_col]), str(row[question_col])],
+            label=1.0
+        ))
+        # Negative pair
+        negative_idx = (idx + 1) % len(df)
+        examples.append(InputExample(
+            texts=[str(row[query_col]), str(df.loc[negative_idx, question_col])],
+            label=0.0
+        ))
+    return examples
 
+def configure_environment(wandb_mode="offline"):
+    """
+    Set environment variables for WandB.
 
-# Split the dataset into train and test
-train_df = df[:6000]
-test_df = df[6000:6300]
-
-# Reset index to ensure it starts from 0 for both train and test
-train_df.reset_index(drop=True, inplace=True)
-test_df.reset_index(drop=True, inplace=True)
-
-# Reset index to ensure it starts from 0 for both train and test
-train_df.reset_index(drop=True, inplace=True)
-test_df.reset_index(drop=True, inplace=True)
-
-# Create training examples
-train_examples = []
-for idx, row in train_df.iterrows():
-    # Using sparql_wikidata and paraphrased_question for positive pairs
-    train_examples.append(
-        InputExample(texts=[str(row[query_row_name]), str(row['question'])], label=1.0))
-
-    # Creating negative pairs by pairing each paraphrased_question with sparql_wikidata of a different row
-    negative_idx = (idx + 1) % len(train_df)  # Ensure the index is within bounds
-    train_examples.append(
-        InputExample(texts=[str(row[query_row_name]), str(train_df.loc[negative_idx, 'question'])],
-                     label=0.0))
-
-# Create test examples
-test_examples = []
-for idx, row in test_df.iterrows():
-    test_examples.append(InputExample(texts=[str(row[query_row_name]), str(row['question'])], label=1.0))
-    negative_idx = (idx + 1) % len(test_df)  # Ensure the index is within bounds
-    test_examples.append(
-        InputExample(texts=[str(row[query_row_name]), str(test_df.loc[negative_idx, 'question'])],
-                     label=0.0))
-
-# Load a pre-trained sentence transformer model
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Define a DataLoader to load training examples in batches
-train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
-
-# Use a contrastive loss function for training
-train_loss = losses.CosineSimilarityLoss(model)
-
-# Configure the training
-num_epochs = 1
-warmup_steps = int(len(train_dataloader) * num_epochs * 0.1)  # 10% of train data for warm-up
-
-# Evaluator for validation during training
-test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name='test-eval')
-test_evaluator_binary = evaluation.BinaryClassificationEvaluator.from_input_examples(test_examples, name='test-binary-eval')
-
-def run_multiple_evaluators(model, evaluators):
-    for evaluator in evaluators:
-        evaluator(model, output_path='./custom_sentence_embedding_model')
+    Args:
+        wandb_mode (str, optional): Mode for WandB. Defaults to "offline".
+    """
+    os.environ["WANDB_MODE"] = wandb_mode
+    if wandb_mode == "offline":
+        os.environ["WANDB_DISABLED"] = True
 
 
-# Train the model
-if DO_TRAIN:
+def train_model(model, train_dataloader, train_loss, evaluator, output_path, epochs=1):
+    """
+    Train the SentenceTransformer model.
+
+    Args:
+        model (SentenceTransformer): The model to train.
+        train_dataloader (DataLoader): DataLoader for training data.
+        train_loss (losses.Loss): Loss function.
+        evaluator (evaluation.BinaryClassificationEvaluator): Evaluator for validation.
+        output_path (str): Path to save the trained model.
+        epochs (int, optional): Number of training epochs. Defaults to 1.
+    """
+    warmup_steps = int(len(train_dataloader) * epochs * 0.1)
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],
-        epochs=num_epochs,
+        epochs=epochs,
         warmup_steps=warmup_steps,
-        evaluator=test_evaluator_binary,
-        evaluation_steps=len(train_dataloader) // 8,  # Evaluate X times per epoch
-        output_path='./custom_sentence_embedding_model'
+        evaluator=evaluator,
+        evaluation_steps=len(train_dataloader) // 8,
+        output_path=output_path
     )
 
-# Save the model
-model.save('./custom_sentence_embedding_model')
+def main():
+    # Settings
+    DO_TRAIN = True
+    QUERY_COL = 'sparql_wikidata'
+    QUESTION_COL = 'question'
+    DATA_PATH = 'lc_quad_preprocessed.csv'
+    MODEL_NAME = 'all-MiniLM-L6-v2'
+    OUTPUT_PATH = '.embedding_models/MODELNAME'
+    TRAIN_SIZE = 20
+    TEST_SIZE = 20
 
-print('Final evaluation after training:')
-# Final evaluation of the model
-R = model.evaluate(test_evaluator)
-print(R)
-R = model.evaluate(test_evaluator_binary)
-print(R)
+    # Configure environment
+    configure_environment()
 
+    # Load and prepare dataset
+    df = load_dataset(DATA_PATH, limit=70000)
+    train_df, test_df = split_dataset(df, TRAIN_SIZE, TEST_SIZE)
+
+    # Create training and testing examples
+    train_examples = create_input_examples(train_df, QUERY_COL, QUESTION_COL)
+    test_examples = create_input_examples(test_df, QUERY_COL, QUESTION_COL)
+
+    # Load pre-trained model
+    model = SentenceTransformer(MODEL_NAME)
+
+    # Setup DataLoader and loss
+    train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
+    train_loss = losses.CosineSimilarityLoss(model)
+
+    # Setup evaluators
+    test_evaluator = evaluation.EmbeddingSimilarityEvaluator.from_input_examples(
+        test_examples, name='test-eval'
+    )
+    test_evaluator_binary = evaluation.BinaryClassificationEvaluator.from_input_examples(
+        test_examples, name='test-binary-eval'
+    )
+
+    # Train the model
+    if DO_TRAIN:
+        train_model(
+            model=model,
+            train_dataloader=train_dataloader,
+            train_loss=train_loss,
+            evaluator=test_evaluator_binary,
+            output_path=OUTPUT_PATH,
+            epochs=1
+        )
+
+    # Save the trained model
+    model.save(OUTPUT_PATH)
+    print('Model saved to', OUTPUT_PATH)
+
+    # Final evaluation
+    print('Final evaluation after training:')
+    results_embed = model.evaluate(test_evaluator)
+    print("Embedding Similarity Evaluator:", results_embed)
+    results_binary = model.evaluate(test_evaluator_binary)
+    print("Binary Classification Evaluator:", results_binary)
+
+if __name__ == "__main__":
+    main()
