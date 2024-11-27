@@ -1,3 +1,5 @@
+from torch.nn.functional import threshold
+
 from helper_functions import *
 
 import requests
@@ -201,7 +203,7 @@ def get_model_api(model_type, llama3_api_endpoint=None, openai_api_key=None):
     if model_type == "llama3":
         if not llama3_api_endpoint:
             raise ValueError("API endpoint required for llama3")
-        return {"api_endpoint": llama3_api_endpoint, "model": model_type}
+        return {"llama3_api_endpoint": llama3_api_endpoint}
     elif model_type == "gpt":
         if not openai_api_key:
             raise ValueError("API key required for GPT")
@@ -230,7 +232,7 @@ def translate_and_assess(
     filter_best_translation="distance",
     llama3_api_endpoint=None,
     openai_api_key=None,
-    k=3,
+    k=2,
     n_shot=1,
     threshold=1,
     NL_gt=None,
@@ -243,8 +245,6 @@ def translate_and_assess(
     # Get model API configuration
     model_config = get_model_api(model_type_T, llama3_api_endpoint, openai_api_key)
 
-    # Translate Query through KG
-    #Q = map_wikidata_to_natural_language(Q)
     print(Q)
 
     # Get query embedding
@@ -274,22 +274,28 @@ def translate_and_assess(
         print(f"Translation quality score ({filtering_method_distance}): {quality_score}")
         # Determine acceptance based on thresholds
         accept = quality_score >= T_A
-
+        intra_cluster_distance = quality_score
         # Choose the best translation
         best_translation_index = np.argmax([evaluate_distance_filtering_method([e], filtering_method_distance=filtering_method_distance) for e in NL_embeddings])
         best_translation = translations[best_translation_index]
-        best_translation_embedding = NL_embeddings[best_translation]
+        best_translation_embedding = NL_embeddings[best_translation_index]
+        best_translation_embedding_q_model = NL_embeddings_q_model[best_translation_index]
     elif filter_best_translation == 'q_nl_score':
         intra_cluster_distance = None
         quality_score = None
         accept = None
-        # todo pick the one with highest q_nl_score
-        best_translation = translations[0]
-        best_translation_embedding = NL_embeddings[0]
-        best_translation_embedding_q_model = NL_embeddings_q_model[0]
-    elif filter_best_translation == "model_comparison":
+        best_translation_index = np.argmax([cosine_similarity(query_embedding.reshape(1, -1), e.reshape(1, -1))[0][0] for e in NL_embeddings_q_model])
+        best_translation = translations[best_translation_index]
+        best_translation_embedding = NL_embeddings[best_translation_index]
+        best_translation_embedding_q_model = NL_embeddings_q_model[best_translation_index]
+    else:
         # here we need to get the index of best translation
         best_translation = compare_query_to_nl(model_type_C, Q, translations, **model_config)
+        accept = None
+        intra_cluster_distance = None
+        # for now, embedding again
+        best_translation_embedding = bert_embedding(best_translation)
+        best_translation_embedding_q_model = q_embedding_model.encode(best_translation, convert_to_tensor=False)
         quality_score = 1
 
 
@@ -414,10 +420,15 @@ def evaluate_translations(combined_df, model_type_T, best_T_A, model_type_C, lla
         llama3_api_endpoint (str): API endpoint for LLaMA3 model
         openai_api_key (str): OpenAI API key
     """
+
+    # Dataframe to store the results
+    results_df = pd.DataFrame(columns=["sparql_wikidata", "paraphrased_question", "question", "best_translation", "bert_q_NL", "bert_NL_NL_gt", "intra_cluster_distance"])
+
+
     for index, row in combined_df.iterrows():
         Q = row["sparql_wikidata_translated"]
         print("-" * 50)
-        translation, accept, quality_score = translate_and_assess(
+        translation, accept, quality_score, intra_cluster_distance, bert_q_nl_score, bert_nl_nl_gt_score = translate_and_assess(
             model_type_T,
             Q,
             best_T_A,
@@ -427,10 +438,10 @@ def evaluate_translations(combined_df, model_type_T, best_T_A, model_type_C, lla
             llama3_api_endpoint=llama3_api_endpoint,
             openai_api_key=openai_api_key,
             k=k,
+            n_shot=1,
+            threshold=best_T_A,
             NL_gt=row["paraphrased_question"],
-            Q_raw=row["sparql_wikidata"],
-            results_df
-        )
+            Q_raw=row["sparql_wikidata"])
 
         print(f"Query {index + 1}:")
         print("SPARQL Query:", Q)
@@ -481,8 +492,8 @@ if __name__ == "__main__":
 
     # Choose model type: "llama3" or "gpt" for translation
     # and critique
-    model_type_C = "gpt"
-    model_type_T = "gpt"  # "llama3" or "gpt"
+    model_type_C = "llama3"
+    model_type_T = "llama3"  # "llama3" or "gpt"
 
     # How many answers to sample per query
     k = 1
@@ -514,9 +525,6 @@ if __name__ == "__main__":
     # Thresholds for acceptance and rejection
     T_A = 0.6  # Placeholder threshold for acceptance
     best_T_A = T_A
-
-    # Dataframe to store the results
-    results_df = pd.DataFrame(columns=["sparql_wikidata", "paraphrased_question", "question", "best_translation", "bert_q_NL", "bert_NL_NL_gt", "intra_cluster_distance"])
 
 
     # Evaluate translations
