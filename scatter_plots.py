@@ -8,7 +8,7 @@ Given a results csv, this file creates a scatter plot between bert score of quer
 '''
 
 # Load the CSV file
-file_path = 'results/translation_results.csv'
+file_path = 'data/v2/translation_results.csv'
 df = pd.read_csv(file_path)
 
 # Scatter plot function with regression line and correlation coefficient
