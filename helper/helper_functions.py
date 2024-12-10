@@ -14,8 +14,12 @@ from helper.wiki_translations import *
 from helper.llm import *
 from helper.load_db import *
 from helper.threshold import *
+import json
 
-
+def load_config(config_file):
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    return config
 
 def load_lc(load_limit: int) -> pd.DataFrame:
     if os.path.exists("data/v2/lc_quad_translated.csv"):

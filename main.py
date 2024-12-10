@@ -1,3 +1,6 @@
+import json
+
+#from scipy.special import result
 from torch.nn.functional import threshold
 
 from helper.helper_functions import *
@@ -14,6 +17,10 @@ from dotenv import load_dotenv
 
 import pandas as pd
 from sentence_transformers import SentenceTransformer
+
+import time
+
+import uuid
 
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -71,10 +78,12 @@ def query_translate_and_assess(
     translations = []
     NL_embeddings_q_model = []
 
+    # Result dictionary to be rea
+    result_dict = {}
+    all_embedding_dict = {}
+
     # Get model API configuration
     model_config = get_model_api(model_type_T, llama3_api_endpoint, openai_api_key)
-
-    print(Q)
 
     # Get query embedding
     #query_embedding = bert_embedding(Q)
@@ -87,56 +96,105 @@ def query_translate_and_assess(
     # Generate k proposals and compute BERT embeddings
     for i in range(k):
         NL = translate_query_to_nl(model_type_T, Q, descriptions, **model_config, n_shot=n_shot, threshold=threshold)
+        #NL = 'THIS IS A TEST TRANSLATION'
         e_i = bert_embedding(NL)
         e_nl_i = q_embedding_model.encode(NL, convert_to_tensor=False)
         NL_embeddings_q_model.append(e_nl_i)
         NL_embeddings.append(e_i)
         translations.append(NL)
 
-    print(f"translations {translations}")
-    
-    if filter_best_translation_method == "distance":
-        quality_score = evaluate_distance_method(NL_embeddings, filtering_method_distance=filtering_method_distance)
-        print(f"Translation quality score ({filtering_method_distance}): {quality_score}")
-        # Determine acceptance based on thresholds
-        accept = quality_score >= T_A
-        intra_cluster_distance = quality_score
-        # Choose the best translation
-        best_translation_index = np.argmax([evaluate_distance_method([e], filtering_method_distance=filtering_method_distance) for e in NL_embeddings])
-        best_translation = translations[best_translation_index]
-        best_translation_embedding = NL_embeddings[best_translation_index]
-        best_translation_embedding_q_model = NL_embeddings_q_model[best_translation_index]
+    # Calculate mean pairwise distance or mean cosine similarity
+    avg_pairwise_distance = evaluate_distance_method(NL_embeddings, filtering_method_distance='intra_cluster')
+    avg_cosine_similarity = evaluate_distance_method(NL_embeddings, filtering_method_distance='cosine')
+
+    #if filter_best_translation_method == "distance":
+    if True:
+        # Choose the best translation based on the one that has closest cosinesim to median embedding
+        # based on related work "ScienceBenchmark: A Complex Real-World Benchmark for
+        # Evaluating Natural Language to SQL Systems"
+
+        # Get median embedding of k translations
+        median_embedding = np.median(np.stack(NL_embeddings), axis=0)
+
+        best_translation_index = np.argmax([cosine_similarity(median_embedding, e) for e in NL_embeddings])
+        best_translation_dist = translations[best_translation_index]
+        best_translation_embedding_dist = NL_embeddings[best_translation_index]
+        best_translation_embedding_q_model_dist = NL_embeddings_q_model[best_translation_index]
         
         
-    elif filter_best_translation_method == 'q_nl_score':
-        intra_cluster_distance = None
-        quality_score = None
-        accept = None
+    #elif filter_best_translation_method == 'q_nl_score':
+    if True:
         best_translation_index = np.argmax([cosine_similarity(query_embedding.reshape(1, -1), e.reshape(1, -1))[0][0] for e in NL_embeddings_q_model])
-        best_translation = translations[best_translation_index]
-        best_translation_embedding = NL_embeddings[best_translation_index]
-        best_translation_embedding_q_model = NL_embeddings_q_model[best_translation_index]
+        best_translation_Q = translations[best_translation_index]
+        best_translation_embedding_Q = NL_embeddings[best_translation_index]
+        best_translation_embedding_q_model_Q = NL_embeddings_q_model[best_translation_index]
         
-        
-    else:
+
+    if True:
+    #else:
         # here we need to get the index of best translation
-        best_translation = compare_query_to_nl(model_type_C, Q, translations, **model_config)
-        accept = None
-        intra_cluster_distance = None
-        # for now, embedding again
-        best_translation_embedding = bert_embedding(best_translation)
-        best_translation_embedding_q_model = q_embedding_model.encode(best_translation, convert_to_tensor=False)
-        quality_score = None
+        best_translation_llm_critique = compare_query_to_nl(model_type_C, Q, translations, **model_config)
+        #best_translation_llm_critique = 'Just a test critique answer'
+
+    # for now, embedding again
+        best_translation_embedding_llm_critique = bert_embedding(best_translation_llm_critique)
+        best_translation_embedding_q_model_llm_critique = q_embedding_model.encode(best_translation_llm_critique, convert_to_tensor=False)
+
+
+    #if not filter_best_translation_method == 'llm_critique':
+    #    best_translation_llm_critique = compare_query_to_nl(model_type_C, Q, translations, **model_config)
+    #    best_translation_embedding_llm_critique = bert_embedding(best_translation_llm_critique)
+
+
+    # Calculate Metrics for the three methods
+    bert_q_nl_score_Q = cosine_similarity(query_embedding.reshape(1, -1), best_translation_embedding_q_model_Q.reshape(1, -1))[0][0]
+    bert_nl_nl_gt_score_Q = cosine_similarity(best_translation_embedding_Q.reshape(1, -1), nl_gt_embedding.reshape(1, -1))[0][0]
+
+    bert_q_nl_score_dist = cosine_similarity(query_embedding.reshape(1, -1), best_translation_embedding_q_model_dist.reshape(1, -1))[0][0]
+    bert_nl_nl_gt_score_dist = cosine_similarity(best_translation_embedding_dist.reshape(1, -1), nl_gt_embedding.reshape(1, -1))[0][0]
+
+    bert_q_nl_score_critique = cosine_similarity(query_embedding.reshape(1, -1), best_translation_embedding_q_model_llm_critique.reshape(1, -1))[0][0]
+    bert_nl_nl_gt_score_critique = cosine_similarity(best_translation_embedding_llm_critique.reshape(1, -1), nl_gt_embedding.reshape(1, -1))[0][0]
+
+
+    # Bert Scores for NL and NL_gt as well as NL and q
+    result_dict['bert_q_nl_score_Q'] = float(bert_q_nl_score_Q)
+    result_dict['bert_nl_nl_gt_score_Q'] = float(bert_nl_nl_gt_score_Q)
+    result_dict['bert_q_nl_score_dist'] = float(bert_q_nl_score_dist)
+    result_dict['bert_nl_nl_gt_score_dist'] = float(bert_nl_nl_gt_score_dist)
+    result_dict['bert_q_nl_score_critique'] = float(bert_q_nl_score_critique)
+    result_dict['bert_nl_nl_gt_score_critique'] = float(bert_nl_nl_gt_score_critique)
+
+    # Embeddings for query and GT
+    all_embedding_dict['q_embedding'] = query_embedding.tolist()
+    all_embedding_dict['NL_gt_embedding'] = nl_gt_embedding.tolist()
+
+    # All translations and its embeddding
+    all_embedding_dict['NL_embeddings'] = [arr.tolist() for arr in NL_embeddings]
+    all_embedding_dict['NL_embeddings_q_model'] = [arr.tolist() for arr in NL_embeddings_q_model]
+    all_embedding_dict['translations'] = translations
+
+    # Saving the best translations per filter and its embedding
+    result_dict['best_translation_Q'] = best_translation_Q
+    all_embedding_dict['best_translation_Q'] = best_translation_Q
+    all_embedding_dict['best_translation_embedding_Q'] = best_translation_embedding_Q.tolist()
+    result_dict['best_translation_dist'] = best_translation_dist
+    all_embedding_dict['best_translation_dist'] = best_translation_dist
+    all_embedding_dict['best_translation_embedding_dist'] = best_translation_embedding_dist.tolist()
+    result_dict['best_translation_llm_critique'] = best_translation_llm_critique
+    all_embedding_dict['best_translation_llm_critique'] = best_translation_llm_critique
+    all_embedding_dict['best_translation_embedding_llm_critique'] = best_translation_embedding_llm_critique.tolist()
+
+    # Filter metrics distance and cossim
+    result_dict['avg_pairwise_distance'] = float(avg_pairwise_distance)
+    result_dict['avg_cosine_similarity'] = float(avg_cosine_similarity)
 
 
 
-    bert_q_nl_score = cosine_similarity(query_embedding.reshape(1, -1), best_translation_embedding_q_model.reshape(1, -1))[0][0]
-    bert_nl_nl_gt_score = cosine_similarity(best_translation_embedding.reshape(1, -1), nl_gt_embedding.reshape(1, -1))[0][0]
+    return result_dict, all_embedding_dict
 
-
-    return best_translation, accept, quality_score, intra_cluster_distance, bert_q_nl_score, bert_nl_nl_gt_score
-
-def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_best_translation_method, filtering_method_distance, llama3_api_endpoint, openai_api_key):
+def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_best_translation_method,
+                     filtering_method_distance, llama3_api_endpoint, openai_api_key, config):
     """
     Evaluate translations for each query in the dataset.
 
@@ -150,14 +208,38 @@ def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_b
     """
 
     # Dataframe to store the results
-    results_df = pd.DataFrame(columns=["sparql_wikidata", "paraphrased_question", "question", "best_translation", "bert_q_NL", "bert_NL_NL_gt", "intra_cluster_distance"])
+    results_df = pd.DataFrame(columns=[
+        "query_id", "original_query", "instantiated_query", "original_question",
+        "bert_q_nl_score_Q", "bert_nl_nl_gt_score_Q",
+        "bert_q_nl_score_dist", "bert_nl_nl_gt_score_dist",
+        "bert_q_nl_score_critique", "bert_nl_nl_gt_score_critique",
+        "best_translation_Q", "best_translation_dist",
+        "best_translation_llm_critique",
+        "avg_pairwise_distance", "avg_cosine_similarity"
+    ])
 
+    result_json = {}
+    result_json['config'] = config
+    result_json['queries'] = []
 
-    for index, row in combined_df.iterrows():
+    # create result folder and filenames
+    timestamp = str(int(time.time()))
+    save_folder_name = os.path.join('results', timestamp)
+    save_folder_name_queries = os.path.join(save_folder_name, 'queries')
+
+    os.makedirs(save_folder_name, exist_ok=True)
+    os.makedirs(save_folder_name_queries, exist_ok=True)
+
+    # File paths for CSV and JSON
+    csv_file_path = os.path.join(save_folder_name, "results.csv")
+
+    for index, row in tqdm(combined_df.iterrows(), total=len(combined_df)):
+
+        query_id = str(uuid.uuid4())
+
         Q = row["sparql_wikidata_translated"]
         descriptions = row["descriptions"]
-        print("-" * 50)
-        translation, accept, quality_score, intra_cluster_distance, bert_q_nl_score, bert_nl_nl_gt_score = query_translate_and_assess(
+        translation_result_dict, all_embeddings_dict = query_translate_and_assess(
             model_type_T,
             Q,
             descriptions,
@@ -170,63 +252,48 @@ def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_b
             k=k,
             n_shot=1,
             threshold=best_T_A,
-            NL_gt=row["paraphrased_question"],
+            NL_gt=row["question"],
             Q_raw=row["sparql_wikidata"])
 
-        print(f"Query {index + 1}:")
-        print("SPARQL Query:", Q)
-        print("Best Translation:", translation)
-        print("Accepted:", accept)
-        print("Quality Score:", quality_score)
-        print(f"Supposed question paraphrased: {row['paraphrased_question']}")
-        print(f"Supposed question: {row['question']}")
-        print("-" * 50)
+        # Adding Info about the query
+        translation_result_dict['original_query'] = row['sparql_wikidata']
+        translation_result_dict['instantiated_query'] = row['sparql_wikidata_translated']
+        translation_result_dict['query_id'] = query_id
+        translation_result_dict['original_question'] = row['question']
 
 
-        # Store the new row in a dictionary
-        new_row = {
-            "sparql_wikidata": Q,
-            "paraphrased_question": row["paraphrased_question"],
-            "question": row["question"],
-            "best_translation": translation,
-            "bert_q_NL": bert_q_nl_score,
-            "bert_NL_NL_gt": bert_nl_nl_gt_score,
-            "intra_cluster_distance": intra_cluster_distance
-        }
+        results_df = pd.concat([results_df, pd.DataFrame([translation_result_dict])], ignore_index=True)
+        results_df.to_csv(csv_file_path)
 
-        # Convert to DataFrame and concatenate
-        results_df = pd.concat([results_df, pd.DataFrame([new_row])], ignore_index=True)
-
-        # Saving results_df to disk please
-        results_df.to_csv('data/v2/translation_results.csv')
+        with open(os.path.join(save_folder_name_queries, f"{query_id}.json"), 'w') as json_file:
+            json.dump(all_embeddings_dict, json_file, indent=4)
 
 # Example usage
 if __name__ == "__main__":
 
+    # Load Params from config
+    config = load_config('config.json')
+
     ### Parameters ###
     # Initialize SPARQL query Q\
-    load_limit = 300
-
-    dataset_name = "data/v2/lc_quad_preprocessed.csv"
+    load_limit = config['n_queries']
+    dataset_name = config["dataset_name"]
     # whether the q-embedding model works with queries that have wikidata codes replaced (instantiated) by label or not
-    Q_EMBEDDING_MODE = 'uninstantiated'
+    Q_EMBEDDING_MODE = config['q_embedding_mode']
     # LLaMA3 usage
-    llama3_api_endpoint = "http://localhost:11434/api/generate"
+    llama3_api_endpoint =config["llama3_api_endpoint"]
     # GPT usage
     openai_api_key = os.getenv("OPENAI_API_KEY")
-
     # Choose model type: "llama3" or "gpt" for translation
     # and critique
-    model_type_C = "gpt"
-    model_type_T = "gpt"  # "llama3" or "gpt"
-
+    model_type_C = config["model_type_C"]
+    model_type_T = config["model_type_T"]  # "llama3" or "gpt"
     # How many answers to sample per query
-    k = 3
-    
+    k = config["k"]
     # Filtering method for best translation
-    filter_best_translation_method = "distance" # "distance" or "q_nl_score" or None(nl compare)
+    filter_best_translation_method = config["filter_best_translation_method"] # "distance" or "q_nl_score" or "llm_critique"(nl compare)
     # Filtering method for distance
-    filtering_method_distance = "intra_cluster" # if distance is used, then "cosine" or "intra_cluster"
+    filtering_method_distance = config["filtering_method_distance"] # if distance is used, then "cosine" or "intra_cluster"
 
     # Check if the combined dataset is saved already
     combined_df = load_or_combine_dataset(dataset_name)
@@ -250,6 +317,7 @@ if __name__ == "__main__":
         filter_best_translation_method,
         filtering_method_distance,
         llama3_api_endpoint,
-        openai_api_key
+        openai_api_key,
+        config=config
     )
 
