@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 
+from tqdm import tqdm
+
 import time
 
 import uuid
@@ -32,7 +34,7 @@ load_dotenv()
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 bert_model = BertModel.from_pretrained("bert-base-uncased")
 
-q_embedding_model = SentenceTransformer('./all-MiniLM-L6-v2-uninstantiated-wikidata-question')
+q_embedding_model = SentenceTransformer('./hard_neg_model_instantiated')
 
 # Compute BERT embeddings for the text
 def bert_embedding(text):
@@ -96,7 +98,7 @@ def query_translate_and_assess(
     # Generate k proposals and compute BERT embeddings
     for i in range(k):
         NL = translate_query_to_nl(model_type_T, Q, descriptions, **model_config, n_shot=n_shot, threshold=threshold)
-        #NL = 'THIS IS A TEST TRANSLATION'
+        #NL = 'THIS IS A hard_neg_model_instantiated TRANSLATION'
         e_i = bert_embedding(NL)
         e_nl_i = q_embedding_model.encode(NL, convert_to_tensor=False)
         NL_embeddings_q_model.append(e_nl_i)
@@ -297,7 +299,7 @@ if __name__ == "__main__":
 
     # Check if the combined dataset is saved already
     combined_df = load_or_combine_dataset(dataset_name)
-    combined_df = combined_df.iloc[:load_limit]
+    combined_df = combined_df.iloc[1000:1000 + load_limit] # TODO MAKE THE SKIP HERE DYNAMIC
 
     best_T_A = load_or_optimize_threshold(
         "data/v2/acceptance_threshold.txt",
