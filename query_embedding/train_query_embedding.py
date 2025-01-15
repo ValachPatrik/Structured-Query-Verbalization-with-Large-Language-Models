@@ -117,15 +117,16 @@ def main():
     QUESTION_COL = 'question'
     DATA_PATH = '../data/v2/lc_quad_preprocessed_hard_negatives.csv'
     MODEL_NAME = 'all-MiniLM-L6-v2'
+    MODEL_NAME = "../.embedding_models/ModernBERT"
     OUTPUT_PATH = '../MODEL'
-    TRAIN_SIZE = 900
+    TRAIN_SIZE = 4000
     TEST_SIZE = 100
 
     # Configure environment
     configure_environment()
 
     # Load and prepare dataset
-    df = load_dataset(DATA_PATH, limit=1000)
+    df = load_dataset(DATA_PATH, limit=5000)
     train_df, test_df = split_dataset(df, TRAIN_SIZE, TEST_SIZE)
 
     # Create training and testing examples
@@ -173,7 +174,7 @@ def main():
             train_loss=train_loss,
             evaluator=test_evaluator_binary,
             output_path=OUTPUT_PATH,
-            epochs=10
+            epochs=1
         )
 
     # Save the trained model

@@ -45,6 +45,7 @@ def scatter_plot_with_regression(df, x_col, y_col, title):
 
 
 QUERY_ROW_NAME = 'instantiated_query'
+#QUERY_ROW_NAME = 'original_query'
 QUESTION_ROW_NAME = 'original_question'
 TRANSLATION_ROW_NAME = 'best_translation_Q'
 
@@ -58,12 +59,13 @@ df = df.iloc[:120]
 df.reset_index(drop=True, inplace=True)
 
 # Load the trained model
-model = SentenceTransformer('../MODEL')
+model = SentenceTransformer("../MODEL")
+
 #model = SentenceTransformer('bert-base-uncased')
 
 # Initialize BERT model and tokenizer for embeddings
-tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-bert_model = BertModel.from_pretrained("bert-base-uncased")
+#tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+#bert_model = BertModel.from_pretrained("bert-base-uncased")
 
 
 q_NL_scores = []
@@ -71,6 +73,7 @@ NL_NL_scores = []
 
 # Calculate cosine similarity for true and false pairs
 for idx, row in df.iterrows():
+    print(idx)
     # Encode true pair (sparql_wikidata and paraphrased_question)
     query = str(row[QUERY_ROW_NAME])
     question = str(row[QUESTION_ROW_NAME])
@@ -80,8 +83,13 @@ for idx, row in df.iterrows():
     translation_embedding_Q = model.encode(translation, convert_to_tensor=True)
 
     # Bert embeddings
-    question_embedding = bert_embedding(question)
-    translation_embedding = bert_embedding(translation)
+    #question_embedding = bert_embedding(question)
+    #translation_embedding = bert_embedding(translation)
+
+    question_embedding = model.encode(question, convert_to_tensor=True)
+    translation_embedding = translation_embedding_Q
+
+
 
     # Cosine similarity for q and NL
     q_nl_similarity = util.pytorch_cos_sim(query_embedding_Q, translation_embedding_Q).item()

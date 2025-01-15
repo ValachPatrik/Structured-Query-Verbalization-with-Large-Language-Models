@@ -7,22 +7,22 @@ import matplotlib.pyplot as plt
 Given a trained sentence embedding model, this code creates histograms showing bert scores for true and false combinations
 '''
 
-QUERY_ROW_NAME = 'sparql_wikidata'
+QUERY_ROW_NAME = 'sparql_wikidata_translated'
 QUESTION_ROW_NAME = 'question'
 
 
 # Load the dataset
-df = pd.read_csv('data/v2/lc_quad_preprocessed.csv')
+df = pd.read_csv('../data/v2/lc_quad_preprocessed.csv')
 
 df = df.iloc[:10000]
 # Split the dataset into test
-test_df = df[6000:6300]
+test_df = df[1200:1500]
 
 # Reset index to ensure it starts from 0
 test_df.reset_index(drop=True, inplace=True)
 
 # Load the trained model
-model = SentenceTransformer('./custom_sentence_embedding_model')
+model = SentenceTransformer('../MODEL')
 #model = SentenceTransformer('bert-base-uncased')
 
 

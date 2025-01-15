@@ -1,11 +1,11 @@
 {
   "model_type_C": "llama3",
   "model_type_T": "llama3",
-  "n_queries": 3,
+  "n_queries":500,
   "dataset_name": "data/v2/lc_quad_preprocessed.csv",
-  "q_embedding_mode": "uninstantiated",
+  "q_embedding_mode": "instantiated",
   "llama3_api_endpoint": "http://localhost:11434/api/generate",
-  "k": 2,
+  "k": 1,
   "filter_best_translation_method": "distance",
   "filtering_method_distance": "intra_cluster"
 
