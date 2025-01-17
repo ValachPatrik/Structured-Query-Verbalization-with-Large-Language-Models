@@ -34,7 +34,7 @@ load_dotenv()
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 bert_model = BertModel.from_pretrained("bert-base-uncased")
 
-q_embedding_model = SentenceTransformer('./hard_neg_model_instantiated')
+q_embedding_model = SentenceTransformer('embedding_models/instantiated_ModernBERT')
 
 # Compute BERT embeddings for the text
 def bert_embedding(text):
@@ -85,7 +85,7 @@ def query_translate_and_assess(
     all_embedding_dict = {}
 
     # Get model API configuration
-    model_config = get_model_api(model_type_T, llama3_api_endpoint, openai_api_key)
+    model_config = get_model_api(model_type_T, llama3_api_endpoint, openai_api_key, gemini_api_key)
 
     # Get query embedding
     #query_embedding = bert_embedding(Q)
@@ -135,8 +135,8 @@ def query_translate_and_assess(
     if True:
     #else:
         # here we need to get the index of best translation
-        best_translation_llm_critique = compare_query_to_nl(model_type_C, Q, translations, **model_config)
-        #best_translation_llm_critique = 'Just a test critique answer'
+        #best_translation_llm_critique = compare_query_to_nl(model_type_C, Q, translations, **model_config)
+        best_translation_llm_critique = 'Just a test critique answer'
 
     # for now, embedding again
         best_translation_embedding_llm_critique = bert_embedding(best_translation_llm_critique)
@@ -196,7 +196,7 @@ def query_translate_and_assess(
     return result_dict, all_embedding_dict
 
 def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_best_translation_method,
-                     filtering_method_distance, llama3_api_endpoint, openai_api_key, config):
+                     filtering_method_distance, llama3_api_endpoint, openai_api_key, gemini_api_key, config):
     """
     Evaluate translations for each query in the dataset.
 
@@ -236,6 +236,8 @@ def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_b
     csv_file_path = os.path.join(save_folder_name, "results.csv")
 
     for index, row in tqdm(combined_df.iterrows(), total=len(combined_df)):
+
+        time.sleep(10)
 
         query_id = str(uuid.uuid4())
 
@@ -286,6 +288,8 @@ if __name__ == "__main__":
     llama3_api_endpoint =config["llama3_api_endpoint"]
     # GPT usage
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+
     # Choose model type: "llama3" or "gpt" for translation
     # and critique
     model_type_C = config["model_type_C"]
@@ -320,6 +324,7 @@ if __name__ == "__main__":
         filtering_method_distance,
         llama3_api_endpoint,
         openai_api_key,
+        gemini_api_key,
         config=config
     )
 

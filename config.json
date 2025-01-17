@@ -1,7 +1,7 @@
 {
-  "model_type_C": "llama3",
-  "model_type_T": "llama3",
-  "n_queries":500,
+  "model_type_C": "gemini",
+  "model_type_T": "gemini",
+  "n_queries":130,
   "dataset_name": "data/v2/lc_quad_preprocessed.csv",
   "q_embedding_mode": "instantiated",
   "llama3_api_endpoint": "http://localhost:11434/api/generate",
