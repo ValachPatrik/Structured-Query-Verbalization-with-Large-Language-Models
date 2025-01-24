@@ -93,7 +93,11 @@ def query_translate_and_assess(
         query_embedding = q_embedding_model.encode(Q, convert_to_tensor=False)
     else:
         query_embedding = q_embedding_model.encode(Q_raw, convert_to_tensor=False)
-    nl_gt_embedding = bert_embedding(NL_gt)
+
+    try:
+        nl_gt_embedding = bert_embedding(NL_gt)
+    except:
+        return None, None
 
     # Generate k proposals and compute BERT embeddings
     for i in range(k):
@@ -237,7 +241,8 @@ def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_b
 
     for index, row in tqdm(combined_df.iterrows(), total=len(combined_df)):
 
-        time.sleep(10)
+        # sleep for gemini rrate limit
+        #time.sleep(15)
 
         query_id = str(uuid.uuid4())
 
@@ -258,6 +263,9 @@ def evaluate_dataset(combined_df, model_type_T, best_T_A, model_type_C, filter_b
             threshold=best_T_A,
             NL_gt=row["question"],
             Q_raw=row["sparql_wikidata"])
+
+        if translation_result_dict is None:
+            continue
 
         # Adding Info about the query
         translation_result_dict['original_query'] = row['sparql_wikidata']
@@ -302,8 +310,11 @@ if __name__ == "__main__":
     filtering_method_distance = config["filtering_method_distance"] # if distance is used, then "cosine" or "intra_cluster"
 
     # Check if the combined dataset is saved already
+
+    THRESHOLD = 4000
+
     combined_df = load_or_combine_dataset(dataset_name)
-    combined_df = combined_df.iloc[1000:1000 + load_limit] # TODO MAKE THE SKIP HERE DYNAMIC
+    combined_df = combined_df.iloc[THRESHOLD:THRESHOLD + load_limit] # TODO MAKE THE SKIP HERE DYNAMIC
 
     best_T_A = load_or_optimize_threshold(
         "data/v2/acceptance_threshold.txt",

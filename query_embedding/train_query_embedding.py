@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import random
 from torch.utils.data import DataLoader
 from sentence_transformers import (
     InputExample,
@@ -68,12 +69,13 @@ def create_input_examples(df, query_col, question_col, negative_col=None, easy=T
                 label=0.0
             ))
         if easy: # todo maybe change
-            # easy Negative pair
-            negative_idx = (idx + 1) % len(df)
-            examples.append(InputExample(
-                texts=[str(row[query_col]), str(df.loc[negative_idx, question_col])],
-                label=0.0
-            ))
+            if random.random() > 0.7:
+                # easy Negative pair
+                negative_idx = (idx + 1) % len(df)
+                examples.append(InputExample(
+                    texts=[str(row[query_col]), str(df.loc[negative_idx, question_col])],
+                    label=0.0
+                ))
     return examples
 
 def configure_environment(wandb_mode="offline"):
@@ -107,26 +109,28 @@ def train_model(model, train_dataloader, train_loss, evaluator, output_path, epo
         warmup_steps=warmup_steps,
         evaluator=evaluator,
         evaluation_steps=len(train_dataloader) // 8,
-        output_path=output_path
+        output_path=output_path,
+        save_best_model=True
     )
 
 def main():
     # Settings
     DO_TRAIN = True
-    QUERY_COL = 'sparql_wikidata_translated'
+    QUERY_COL = 'instantiated_query'
     QUESTION_COL = 'question'
-    DATA_PATH = '../data/v2/lc_quad_preprocessed_hard_negatives.csv'
-    MODEL_NAME = 'all-MiniLM-L6-v2'
-    MODEL_NAME = "../.embedding_models/ModernBERT"
+    DATA_PATH = '../data/v2/hard_negatives_gpt4_row_0_to_1000_and_4000_to_4900.csv'
+    #MODEL_NAME = 'all-MiniLM-L6-v2'
+    MODEL_NAME = "../embedding_models/ModernBERT_untrained"
     OUTPUT_PATH = '../MODEL'
-    TRAIN_SIZE = 4000
-    TEST_SIZE = 100
+    TRAIN_SIZE = 1600
+    TEST_SIZE = 190
+    EPOCHS=3
 
     # Configure environment
     configure_environment()
 
     # Load and prepare dataset
-    df = load_dataset(DATA_PATH, limit=5000)
+    df = load_dataset(DATA_PATH)
     train_df, test_df = split_dataset(df, TRAIN_SIZE, TEST_SIZE)
 
     # Create training and testing examples
@@ -173,8 +177,8 @@ def main():
             train_dataloader=train_dataloader,
             train_loss=train_loss,
             evaluator=test_evaluator_binary,
-            output_path=OUTPUT_PATH,
-            epochs=1
+            output_path='../TRAINING_RESULTS',
+            epochs=EPOCHS
         )
 
     # Save the trained model

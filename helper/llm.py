@@ -78,13 +78,30 @@ def llama3_compare_translations(llama3_api_endpoint, Q, translations, model):
 
 # Function to call OpenAI GPT API
 def gpt_generate_translation(openai_api_key, Q, descriptions, n_shot=0, threshold=1):
+
+    gpt_model = 'gpt-4o' #todo put this into config
+
     client = OpenAI(api_key=openai_api_key)
-    prompt = f"""You are a AI translator for converting sparql queries into normal natural language questions.
-            Example query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}, Answer: What periodical literature does Delta Air Lines use as a moutpiece?
+    prompt = f"""You are a AI translator for converting sparql queries into its natural language questions.
+            Here are some examples:
+
+            Query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}
+            Translation: What periodical literature does Delta Air Lines use as a moutpiece?
+
+            Query: ASK WHERE {{ [Judi Dench] [award received] [Tony Award for Best Direction of a Play] . [Judi Dench] [award received] [Praemium Imperiale] }}
+            Translation: Did Judi Dench receive the Tony Award for Best Direction of a Play and the Praemium Imperiale
+
+            Query with a blank node:
+            Query: SELECT ?obj WHERE {{ [Angela Merkel] [position held] ?s . ?s [position held] ?obj . ?s [start time] ?x filter(contains(YEAR(?x),'1994')) }}
+            Translation: Which position did Angela Merkel hold on November 10, 1994?
+
+            Query: select ?ent where {{ ?ent [instance of] [Class IB flammable liquid] . ?ent [lower flammable limit] ?obj }} ORDER BY DESC(?obj)LIMIT 5 
+            Translation: Which 5 Class IB flammable liquids have the highest lower flammable limit ? 
+
             Context information: {descriptions}
-            Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'"""
+            Translate the following sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'"""
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=gpt_model,
         messages=[
             {"role": "user", "content": prompt}
         ]
@@ -92,14 +109,28 @@ def gpt_generate_translation(openai_api_key, Q, descriptions, n_shot=0, threshol
     response_text = response.choices[0].message.content
 
     for _ in range(n_shot):
-        prompt = f"""You are a AI translator for converting sparql queries into normal natural language questions.
-                Example query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}, Answer: What periodical literature does Delta Air Lines use as a moutpiece?
-                Context information: {descriptions}
-                Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'
-                {response_text}
-                Reflect on your answer and improve upon it; respond with only the improved question in one sentence only."""
+        prompt = f"""You are a AI translator for converting sparql queries into its natural language questions.
+            Here are some examples:
+
+            Query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}
+            Translation: What periodical literature does Delta Air Lines use as a moutpiece?
+
+            Query: ASK WHERE {{ [Judi Dench] [award received] [Tony Award for Best Direction of a Play] . [Judi Dench] [award received] [Praemium Imperiale] }}
+            Translation: Did Judi Dench receive the Tony Award for Best Direction of a Play and the Praemium Imperiale
+
+            Query with a blank node:
+            Query: SELECT ?obj WHERE {{ [Angela Merkel] [position held] ?s . ?s [position held] ?obj . ?s [start time] ?x filter(contains(YEAR(?x),'1994')) }}
+            Translation: Which position did Angela Merkel hold on November 10, 1994?
+
+            Query: select ?ent where {{ ?ent [instance of] [Class IB flammable liquid] . ?ent [lower flammable limit] ?obj }} ORDER BY DESC(?obj)LIMIT 5 
+            Translation: Which 5 Class IB flammable liquids have the highest lower flammable limit ? 
+
+            Context information: {descriptions}
+            Translate the following sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'
+            {response_text}
+            Reflect on your answer and improve it if necessary; respond with only the improved question in one sentence only."""
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=gpt_model,
             messages=[
                 {"role": "user", "content": prompt}
             ]
@@ -113,21 +144,48 @@ def gpt_generate_translation(openai_api_key, Q, descriptions, n_shot=0, threshol
 
 def gemini_generate_translation(api_key, Q, descriptions, n_shot=0, threshold=1):
     model = genai.GenerativeModel("gemini-2.0-flash-exp")
-    prompt = f"""You are a AI translator for converting sparql queries into normal natural language questions.
-            Example query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}, Answer: What periodical literature does Delta Air Lines use as a moutpiece?
-            Context information: {descriptions}
-            Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'"""
+    prompt = f"""You are a AI translator for converting sparql queries into its natural language questions.
+            Here are some examples:
 
+            Query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}
+            Translation: What periodical literature does Delta Air Lines use as a moutpiece?
+
+            Query: ASK WHERE {{ [Judi Dench] [award received] [Tony Award for Best Direction of a Play] . [Judi Dench] [award received] [Praemium Imperiale] }}
+            Translation: Did Judi Dench receive the Tony Award for Best Direction of a Play and the Praemium Imperiale
+
+            Query with a blank node:
+            Query: SELECT ?obj WHERE {{ [Angela Merkel] [position held] ?s . ?s [position held] ?obj . ?s [start time] ?x filter(contains(YEAR(?x),'1994')) }}
+            Translation: Which position did Angela Merkel hold on November 10, 1994?
+
+            Query: select ?ent where {{ ?ent [instance of] [Class IB flammable liquid] . ?ent [lower flammable limit] ?obj }} ORDER BY DESC(?obj)LIMIT 5 
+            Translation: Which 5 Class IB flammable liquids have the highest lower flammable limit ? 
+
+            Context information: {descriptions}
+            Translate the following sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'"""
     response = model.generate_content(prompt)
     response_text = response.text
 
     for _ in range(n_shot):
-        prompt = f"""You are a AI translator for converting sparql queries into normal natural language questions.
-                Example query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}, Answer: What periodical literature does Delta Air Lines use as a moutpiece?
-                Context information: {descriptions}
-                Translate the sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'
-                {response_text}
-                Reflect on your answer and improve upon it; respond with only the improved question in one sentence only."""
+        prompt = f"""You are a AI translator for converting sparql queries into its natural language questions.
+            Here are some examples:
+
+            Query: select distinct ?obj where {{ [Delta Air Lines] [house publication] ?obj . ?obj [instance of] [periodical] }}
+            Translation: What periodical literature does Delta Air Lines use as a moutpiece?
+
+            Query: ASK WHERE {{ [Judi Dench] [award received] [Tony Award for Best Direction of a Play] . [Judi Dench] [award received] [Praemium Imperiale] }}
+            Translation: Did Judi Dench receive the Tony Award for Best Direction of a Play and the Praemium Imperiale
+
+            Query with a blank node:
+            Query: SELECT ?obj WHERE {{ [Angela Merkel] [position held] ?s . ?s [position held] ?obj . ?s [start time] ?x filter(contains(YEAR(?x),'1994')) }}
+            Translation: Which position did Angela Merkel hold on November 10, 1994?
+
+            Query: select ?ent where {{ ?ent [instance of] [Class IB flammable liquid] . ?ent [lower flammable limit] ?obj }} ORDER BY DESC(?obj)LIMIT 5 
+            Translation: Which 5 Class IB flammable liquids have the highest lower flammable limit ? 
+
+            Context information: {descriptions}
+            Translate the following sparql query into natural language; formulate the response as a question and respond in one sentence only with the translation itself: '{Q}'
+            {response_text}
+            Reflect on your answer and improve it if necessary; respond with only the improved question in one sentence only."""
         response = model.generate_content(prompt)
         response_text = response.text
         if threshold == None:
@@ -159,6 +217,10 @@ def gemini_compare_translations(openai_api_key, Q, translations):
 
 # Abstraction for translation model
 def translate_query_to_nl(model_type_T, Q, descriptions, llama3_api_endpoint=None, openai_api_key=None, n_shot=1, threshold=1):
+
+
+
+
     if model_type_T == "llama3":
         return llama3_generate_translation(llama3_api_endpoint, Q, descriptions, model=model_type_T, n_shot=n_shot, threshold=threshold)
     elif model_type_T == "gpt":

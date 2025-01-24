@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import linregress
 from transformers import BertModel, BertTokenizer
 import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 '''
 Given a trained sentence embedding model, this code creates histograms showing bert scores for true and false combinations
@@ -42,16 +43,17 @@ QUESTION_ROW_NAME = 'original_question'
 TRANSLATION_ROW_NAME = 'best_translation_Q'
 
 # Load the dataset
-df = pd.read_csv('../results/gemini1/results.csv')
+df = pd.read_csv('../results/gemini_few_shot/results_classified_gemini_few_shot.csv')
 
 # (Optional) restrict your dataframe, for example:
-df = df.iloc[:50]
+df = df.iloc[:49]
 
 # Reset index to ensure it starts from 0
 df.reset_index(drop=True, inplace=True)
 
 # Load the trained model
-model = SentenceTransformer("../embedding_models/instantiated_ModernBERT")
+#model = SentenceTransformer("../embedding_models/instantiated_ModernBERT")
+model = SentenceTransformer("../MODEL")
 # If you want to use BERT base model:
 # model = SentenceTransformer('bert-base-uncased')
 
@@ -64,6 +66,7 @@ bert_model = SentenceTransformer("../embedding_models/ModernBERT_untrained")
 
 q_NL_scores = []
 NL_NL_scores = []
+manual_scores = []
 
 # Arrays to store q_NL similarity for correct and incorrect translations
 q_NL_correct = []
@@ -97,6 +100,7 @@ for idx, row in df.iterrows():
 
     # If translation_correct is defined (not NaN), separate them into correct/incorrect
     if pd.notna(row.get('translation_correct')):
+        manual_scores.append(row['translation_correct'])
         if row['translation_correct'] == 1:
             q_NL_correct.append(q_nl_similarity)
         elif row['translation_correct'] == 0:
@@ -111,6 +115,12 @@ except:
 
 
 print('Average BERT_NL_GT Score: ', np.mean(NL_NL_scores))
+print('Average BERT_NL_Q Score: ', np.mean(q_NL_scores))
+
+corr_matrix = np.corrcoef(q_NL_scores, manual_scores)
+correlation = corr_matrix[0, 1]
+print("Correlation of manual assessment and q_NL score:", correlation)
+
 
 
 # Scatter plot
@@ -131,5 +141,55 @@ plt.title('Histogram of q_NL Similarities by Translation Correctness')
 plt.xlabel('q_NL Similarity')
 plt.ylabel('Count')
 plt.legend()
+plt.grid(True)
+plt.show()
+
+# Define the threshold for classification
+threshold = 0.73  # You can adjust this value based on your requirements
+
+# Initialize lists to store predicted labels and true labels
+predicted_labels = []
+true_labels = []
+
+# Iterate over the scores and manual labels to create predicted and true label lists
+for score, true_label in zip(q_NL_scores, manual_scores):
+    predicted_label = 1 if score >= threshold else 0
+    predicted_labels.append(predicted_label)
+    true_labels.append(true_label)
+
+# Compute evaluation metrics
+accuracy = accuracy_score(true_labels, predicted_labels)
+precision = precision_score(true_labels, predicted_labels, zero_division=0)
+recall = recall_score(true_labels, predicted_labels, zero_division=0)
+
+print(f"\nClassification Metrics using threshold = {threshold}:")
+print(f"Accuracy : {accuracy:.4f}")
+print(f"Precision: {precision:.4f}")
+print(f"Recall   : {recall:.4f}")
+
+# Optional: Display a confusion matrix
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+cm = confusion_matrix(true_labels, predicted_labels)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['Incorrect', 'Correct'])
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Confusion Matrix')
+plt.show()
+
+# Optional: Find the optimal threshold using ROC Curve
+from sklearn.metrics import roc_curve, auc
+
+fpr, tpr, thresholds = roc_curve(true_labels, q_NL_scores)
+roc_auc = auc(fpr, tpr)
+
+plt.figure(figsize=(8,6))
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+plt.plot([0,1], [0,1], color='navy', lw=2, linestyle='--')
+plt.xlim([-0.01,1.0])
+plt.ylim([0.0,1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC)')
+plt.legend(loc="lower right")
 plt.grid(True)
 plt.show()

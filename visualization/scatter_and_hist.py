@@ -63,10 +63,15 @@ def scatter_plot_with_regression(
 
 QUERY_ROW_NAME = 'instantiated_query'
 QUESTION_ROW_NAME = 'original_question'
-TRANSLATION_ROW_NAME = 'best_translation_Q'
+#TRANSLATION_ROW_NAME = 'best_translation_Q'
+CORRECTNESS_COLUMN = 'translation_correct'
+
+
+CORRECTNESS_COLUMN = 'gt_correct'
+TRANSLATION_ROW_NAME = 'original_question'
 
 # Load the dataset
-df = pd.read_csv('../results/llama3/results_classified.csv')
+df = pd.read_csv('../results/gpt4_few_shot/results_gpt4_few_shot.csv')
 
 # (Optional) restrict your dataframe, for example:
 df = df.iloc[:50]
@@ -75,7 +80,7 @@ df = df.iloc[:50]
 df.reset_index(drop=True, inplace=True)
 
 # Load the trained model
-model = SentenceTransformer("../MODEL")
+model = SentenceTransformer("../embedding_models/instantiated_ModernBERT")
 
 # Initialize BERT model and tokenizer for embeddings (if you need them)
 #tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
@@ -122,13 +127,13 @@ for idx, row in df.iterrows():
     NL_NL_scores.append(NL_NL_gt_similarity)
 
     # Only gather correctness data if 'translation_correct' is not NaN
-    if pd.notna(row.get('translation_correct')):
+    if pd.notna(row.get(CORRECTNESS_COLUMN)):
         # If translation is correct
-        if row['translation_correct'] == 1:
+        if row[CORRECTNESS_COLUMN] == 1:
             q_NL_correct.append(q_nl_similarity)
             NL_NL_correct.append(NL_NL_gt_similarity)
         # If translation is incorrect
-        elif row['translation_correct'] == 0:
+        elif row[CORRECTNESS_COLUMN] == 0:
             q_NL_wrong.append(q_nl_similarity)
             NL_NL_wrong.append(NL_NL_gt_similarity)
 

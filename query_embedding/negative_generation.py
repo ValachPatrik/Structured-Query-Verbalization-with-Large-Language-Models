@@ -104,8 +104,13 @@ def process_csv(input_file, output_file, use_gemini=False, sleep_time=1):
     # Read the CSV file
     df = pd.read_csv(input_file)
 
+    df = df.iloc[:] # TODO MAKE THE SKIP HERE DYNAMIC
+
+
+    QUESTION_COLUMN = 'question'
+
     # Ensure the 'question' column exists
-    if 'question' not in df.columns:
+    if QUESTION_COLUMN not in df.columns:
         raise ValueError("The input CSV must contain a 'question' column.")
 
     # Initialize new columns
@@ -115,7 +120,7 @@ def process_csv(input_file, output_file, use_gemini=False, sleep_time=1):
     # Iterate over each row with progress
     i = 0
     for index, row in df.iterrows():
-        question = row['question']
+        question = row[QUESTION_COLUMN]
         print(f"Processing row {index + 1}/{len(df)}: {question}")
 
         try:
@@ -135,16 +140,16 @@ def process_csv(input_file, output_file, use_gemini=False, sleep_time=1):
 
         # Sleep to avoid overloading the API
         i += 1
-        time.sleep(8)
-        if i >1000:
-            break
+        time.sleep(7)
+        #if i >295:
+        #    break
 
         # Save the updated CSV
         df.to_csv(output_file, index=False)
         print(f"Processed CSV saved to {output_file}")
 
 # Input and output file paths
-input_csv = "../data/v2/lc_quad_preprocessed.csv"       # Replace with your input file path
+input_csv = "../results/1737620314/results.csv"       # Replace with your input file path
 output_csv = "output.csv"     # Replace with your desired output file path
 
 # Process the CSV
