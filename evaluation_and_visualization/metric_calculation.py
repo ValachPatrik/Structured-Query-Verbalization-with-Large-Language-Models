@@ -20,7 +20,7 @@ def calculate_rougeL(row):
         return 0.0
 
 # Load the CSV file
-df = pd.read_csv('../results/gpt4_few_shot/results_gpt4_few_shot.csv')  # replace 'your_file.csv' with your actual file path
+df = pd.read_csv('../results/gpt4_300/results_classified.csv')  # replace 'your_file.csv' with your actual file path
 
 # Prepare lists to collect metric scores
 bleu_scores = []

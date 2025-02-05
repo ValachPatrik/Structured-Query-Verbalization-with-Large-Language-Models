@@ -7,6 +7,11 @@ from transformers import BertModel, BertTokenizer
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 
+
+import scienceplots
+
+plt.style.use('science')
+
 '''
 Given a trained sentence embedding model, this code creates histograms showing bert scores for true and false combinations
 '''
@@ -40,13 +45,19 @@ def scatter_plot_with_regression(df, x_values, y_values, title):
 
 QUERY_ROW_NAME = 'instantiated_query'
 QUESTION_ROW_NAME = 'original_question'
-TRANSLATION_ROW_NAME = 'best_translation_Q'
+TRANSLATION_ROW_NAME = 'original_question'
+CORRECT_COLUMN='gt_correct'
+
+
+
+#TRANSLATION_ROW_NAME = 'original_question'
+#CORRECT_COLUMN='gt_correct'
 
 # Load the dataset
-df = pd.read_csv('../results/gemini_few_shot/results_classified_gemini_few_shot.csv')
+df = pd.read_csv('../results/gpt4_300/results.csv')
 
 # (Optional) restrict your dataframe, for example:
-df = df.iloc[:49]
+df = df.iloc[:50]
 
 # Reset index to ensure it starts from 0
 df.reset_index(drop=True, inplace=True)
@@ -95,15 +106,17 @@ for idx, row in df.iterrows():
     q_nl_similarity = util.pytorch_cos_sim(query_embedding_Q, translation_embedding_Q).item()
     N_NL_gt_similarity = util.pytorch_cos_sim(question_embedding, translation_embedding).item()
 
-    q_NL_scores.append(q_nl_similarity)
-    NL_NL_scores.append(N_NL_gt_similarity)
+    #q_NL_scores.append(q_nl_similarity)
+    #NL_NL_scores.append(N_NL_gt_similarity)
 
     # If translation_correct is defined (not NaN), separate them into correct/incorrect
-    if pd.notna(row.get('translation_correct')):
-        manual_scores.append(row['translation_correct'])
-        if row['translation_correct'] == 1:
+    if pd.notna(row.get(CORRECT_COLUMN)):
+        q_NL_scores.append(q_nl_similarity)
+        NL_NL_scores.append(N_NL_gt_similarity)
+        manual_scores.append(row[CORRECT_COLUMN])
+        if row[CORRECT_COLUMN] == 1:
             q_NL_correct.append(q_nl_similarity)
-        elif row['translation_correct'] == 0:
+        elif row[CORRECT_COLUMN] == 0:
             q_NL_wrong.append(q_nl_similarity)
 
 # printing accuracy:
@@ -128,24 +141,26 @@ scatter_plot_with_regression(df, q_NL_scores, NL_NL_scores,
                              'Scatter Plot: bert_q_NL vs bert_NL_NL_gt')
 
 # Now create a histogram only for rows where translation_correct is present
-plt.figure(figsize=(10, 6))
+#plt.figure(figsize=(10, 6))
 
 bins = np.linspace(0, 1, 50)  # Choose bins from 0 to 1 for cosine similarity
 
 plt.hist(q_NL_correct, bins=bins, color='green', alpha=0.6,
-         label='Correct Translation (1)')
+         label='Correct Translation')
 plt.hist(q_NL_wrong, bins=bins, color='red', alpha=0.6,
-         label='Incorrect Translation (0)')
+         label='Incorrect Translation')
 
-plt.title('Histogram of q_NL Similarities by Translation Correctness')
-plt.xlabel('q_NL Similarity')
+#plt.title('Histogram of q_NL Similarities by Translation Correctness')
+plt.xlabel('$BERTScore_{Q, NL}$')
 plt.ylabel('Count')
 plt.legend()
-plt.grid(True)
+#plt.grid(True)
+plt.tight_layout()
+plt.savefig('hist.pdf')
 plt.show()
 
 # Define the threshold for classification
-threshold = 0.73  # You can adjust this value based on your requirements
+threshold = 0.86  # You can adjust this value based on your requirements
 
 # Initialize lists to store predicted labels and true labels
 predicted_labels = []

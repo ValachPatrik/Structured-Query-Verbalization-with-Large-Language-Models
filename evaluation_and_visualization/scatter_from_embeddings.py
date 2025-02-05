@@ -50,7 +50,7 @@ QUESTION_ROW_NAME = 'original_question'
 TRANSLATION_ROW_NAME = 'best_translation_Q'
 
 # Load the dataset
-df = pd.read_csv('../results/1734028434/results.csv')
+df = pd.read_csv('../results/1736952116/results.csv')
 
 df = df.iloc[:120]
 
@@ -59,13 +59,13 @@ df = df.iloc[:120]
 df.reset_index(drop=True, inplace=True)
 
 # Load the trained model
-model = SentenceTransformer("../MODEL")
+model = SentenceTransformer("../embedding_models/instantiated_ModernBERT")
 
 #model = SentenceTransformer('bert-base-uncased')
 
 # Initialize BERT model and tokenizer for embeddings
-#tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-#bert_model = BertModel.from_pretrained("bert-base-uncased")
+tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+bert_model = BertModel.from_pretrained("bert-base-uncased")
 
 
 q_NL_scores = []
@@ -83,11 +83,11 @@ for idx, row in df.iterrows():
     translation_embedding_Q = model.encode(translation, convert_to_tensor=True)
 
     # Bert embeddings
-    #question_embedding = bert_embedding(question)
-    #translation_embedding = bert_embedding(translation)
+    question_embedding = bert_embedding(question)
+    translation_embedding = bert_embedding(translation)
 
-    question_embedding = model.encode(question, convert_to_tensor=True)
-    translation_embedding = translation_embedding_Q
+    #question_embedding = model.encode(question, convert_to_tensor=True)
+    #translation_embedding = translation_embedding_Q
 
 
 
